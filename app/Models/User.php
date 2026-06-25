@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -11,7 +12,7 @@ use Illuminate\Notifications\Notifiable;
  */
 class User extends Authenticatable
 {
-    use Notifiable;
+    use HasUuids, Notifiable;
 
     protected $fillable = [
         'hotel_id', 'name', 'email', 'phone', 'password', 'role',
@@ -47,7 +48,6 @@ class User extends Authenticatable
         return $this->role === 'manager';
     }
 
-    /** Owner or manager — used for gating things like "view all reports" */
     public function canManageHotel(): bool
     {
         return in_array($this->role, ['owner', 'manager']);

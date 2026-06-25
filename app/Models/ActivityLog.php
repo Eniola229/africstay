@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 
 class ActivityLog extends Model
 {
-    public $timestamps = false; // created_at only, set manually
+    use HasUuids;
+
+    public $timestamps = false;
 
     protected $fillable = [
         'hotel_id', 'user_id', 'user_name', 'user_role', 'action', 'action_category',
@@ -23,17 +26,13 @@ class ActivityLog extends Model
         ];
     }
 
-    /**
-     * Convenience logger — call from controllers:
-     * ActivityLog::record($hotelId, $user, 'LOGIN', 'auth', null, null, null, 'Owner Chidi Obi logged in.');
-     */
     public static function record(
-        int $hotelId,
+        string $hotelId,
         ?User $user,
         string $action,
         string $category,
         ?string $targetType,
-        ?int $targetId,
+        ?string $targetId,
         ?string $targetLabel,
         string $description,
         array $old = [],

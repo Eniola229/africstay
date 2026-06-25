@@ -2,12 +2,13 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
 class PlatformAdmin extends Authenticatable
 {
-    use Notifiable;
+    use HasUuids, Notifiable;
 
     protected $fillable = [
         'name', 'email', 'password', 'role', 'is_active', 'last_login_at',

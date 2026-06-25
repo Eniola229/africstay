@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 
 class PlatformActivityLog extends Model
 {
+    use HasUuids;
+
     public $timestamps = false;
 
     protected $fillable = [
@@ -28,7 +31,7 @@ class PlatformActivityLog extends Model
         string $action,
         string $category,
         ?string $targetType,
-        ?int $targetId,
+        ?string $targetId,
         ?string $targetLabel,
         string $description,
         array $old = [],

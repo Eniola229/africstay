@@ -1,8 +1,18 @@
 <?php
 
-use Illuminate\Foundation\Inspiring;
-use Illuminate\Support\Facades\Artisan;
+use App\Console\Commands\CheckSubscriptionExpiry;
+use Illuminate\Support\Facades\Schedule;
 
-Artisan::command('inspire', function () {
-    $this->comment(Inspiring::quote());
-})->purpose('Display an inspiring quote');
+/*
+|--------------------------------------------------------------------------
+| Subscription expiry watcher
+|--------------------------------------------------------------------------
+| Runs once a day. Sends 7/3/1-day renewal reminders (email + SMS) and
+| flips subscriptions to past_due/expired once their paid period ends.
+| Make sure your server's actual cron runs `php artisan schedule:run` every
+| minute (standard Laravel setup) for this to fire.
+*/
+Schedule::command(CheckSubscriptionExpiry::class)
+    ->dailyAt('08:00')
+    ->withoutOverlapping()
+    ->onOneServer();
