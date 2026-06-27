@@ -101,6 +101,18 @@ class OnboardingController extends Controller
         ]);
 
         if ($validated['tier'] === 'enterprise') {
+            $owner = Auth::user();
+            $hotel = $this->hotel();
+
+            \App\Models\EnterpriseInquiry::create([
+                'contact_name' => $owner->name,
+                'hotel_name' => $hotel->name,
+                'email' => $owner->email,
+                'phone' => $owner->phone,
+                'message' => 'Selected Enterprise during onboarding.',
+                'status' => 'new',
+            ]);
+
             return redirect()->route('onboarding.show', ['step' => 2])
                 ->with('info', 'Enterprise is custom-priced — our team will reach out. For now, pick Starter, Growth or Pro to get started today.');
         }

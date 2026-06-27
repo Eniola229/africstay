@@ -17,6 +17,13 @@
                 Subscription expiring — <a href="{{ route('hotel.subscription.plans') }}" class="text-dark fw-bold ms-1">Renew now</a>
             </span>
             @endif
+            @if(auth()->user()->hotel && (auth()->user()->hotel->isApproachingRoomLimit() || auth()->user()->hotel->isApproachingStaffLimit()))
+            <span class="badge bg-info text-white d-none d-md-inline-flex align-items-center gap-1 ms-2">
+                <i class="feather-trending-up" style="font-size:12px;"></i>
+                Approaching your {{ ucfirst(auth()->user()->hotel->tier) }} tier limit —
+                <a href="{{ route('hotel.subscription.plans') }}" class="text-white fw-bold ms-1">Upgrade</a>
+            </span>
+            @endif
         </div>
 
         <div class="header-right ms-auto">

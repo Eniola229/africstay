@@ -18,6 +18,16 @@
 </head>
 <body>
 
+@if(session('platform_impersonating_hotel_id'))
+<div style="background:#212529;color:#fff;text-align:center;padding:8px;font-size:13px;font-weight:600;letter-spacing:.5px;position:sticky;top:0;z-index:2000;">
+    <i class="feather-eye me-1"></i> PLATFORM VIEW — READ ONLY
+    <form method="POST" action="{{ route('platform.hotels.stop-impersonating') }}" class="d-inline ms-2">
+        @csrf
+        <button type="submit" class="btn btn-sm btn-outline-light py-0 px-2" style="font-size:11px;">Exit</button>
+    </form>
+</div>
+@endif
+
 @include('layouts.partials.hotel-nav')
 @include('layouts.partials.hotel-header')
 

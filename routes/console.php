@@ -1,6 +1,7 @@
 <?php
 
 use App\Console\Commands\CheckSubscriptionExpiry;
+use App\Console\Commands\ExpireStalePendingBookings;
 use Illuminate\Support\Facades\Schedule;
 
 /*
@@ -14,5 +15,18 @@ use Illuminate\Support\Facades\Schedule;
 */
 Schedule::command(CheckSubscriptionExpiry::class)
     ->dailyAt('08:00')
+    ->withoutOverlapping()
+    ->onOneServer();
+
+/*
+|--------------------------------------------------------------------------
+| Stale online-booking sweep
+|--------------------------------------------------------------------------
+| Frees up rooms held by abandoned online checkouts (pending, never paid).
+| Runs every 30 minutes — frequent enough that a room doesn't stay blocked
+| for long, infrequent enough not to be wasteful.
+*/
+Schedule::command(ExpireStalePendingBookings::class)
+    ->everyThirtyMinutes()
     ->withoutOverlapping()
     ->onOneServer();

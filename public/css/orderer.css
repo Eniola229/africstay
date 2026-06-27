@@ -1,0 +1,109 @@
+/* ================================================
+   Orderer — Brand Color Overrides
+   Primary green: #2ECC71  Dark green: #27AE60
+   ================================================ */
+
+:root {
+    --orderer-primary:   #2ECC71;
+    --orderer-dark:      #27AE60;
+    --orderer-darker:    #1E8449;
+    --orderer-light:     #D5F5E3;
+    --orderer-text:      #1a1a1a;
+}
+
+/* Replace all essence orange/dark buttons with green */
+.essence-btn,
+.btn.essence-btn {
+    background-color: var(--orderer-primary) !important;
+    border-color: var(--orderer-primary) !important;
+    color: #fff !important;
+}
+
+.essence-btn:hover,
+.btn.essence-btn:hover {
+    background-color: var(--orderer-dark) !important;
+    border-color: var(--orderer-dark) !important;
+}
+
+/* Nav active / hover links */
+.classynav ul li a:hover,
+.classynav ul li.active > a {
+    color: var(--orderer-primary) !important;
+}
+
+/* Footer links hover */
+.footer_menu ul li a:hover,
+.footer_widget_menu li a:hover {
+    color: var(--orderer-primary) !important;
+}
+
+/* Product favourite heart active */
+.favme.active,
+.favme:hover {
+    color: var(--orderer-primary) !important;
+}
+
+/* Pagination active */
+.pagination .page-item.active .page-link {
+    background-color: var(--orderer-primary) !important;
+    border-color: var(--orderer-primary) !important;
+}
+
+/* Badge / offer badge */
+.product-badge.offer-badge span {
+    background-color: var(--orderer-primary) !important;
+}
+
+/* Cart button */
+.cart-area a span,
+.cart-button a span {
+    background-color: var(--orderer-primary) !important;
+}
+
+/* Section headings underline if any */
+.section-heading h2::after {
+    background-color: var(--orderer-primary) !important;
+}
+
+/* Auth forms */
+.orderer-auth-btn {
+    background-color: var(--orderer-primary);
+    border: none;
+    color: #fff;
+    padding: 12px 30px;
+    width: 100%;
+    font-size: 15px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: background-color .3s;
+}
+
+.orderer-auth-btn:hover {
+    background-color: var(--orderer-dark);
+}
+
+.orderer-auth-link {
+    color: var(--orderer-primary);
+}
+
+.orderer-auth-link:hover {
+    color: var(--orderer-darker);
+}
+
+/* Wallet balance badge */
+.wallet-badge {
+    background-color: var(--orderer-light);
+    color: var(--orderer-darker);
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+/* Pending approval banner */
+.pending-approval-banner {
+    background-color: #fff3cd;
+    border-left: 4px solid #ffc107;
+    padding: 15px 20px;
+    margin-bottom: 20px;
+}

@@ -7,8 +7,10 @@ use App\Models\ActivityLog;
 use App\Models\Booking;
 use App\Models\Guest;
 use App\Models\Hotel;
+use App\Models\HousekeepingTask;
 use App\Models\Room;
 use App\Services\NotificationFallbackService;
+use App\Services\SmsService;
 use App\Services\VirtualAccountService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -20,6 +22,7 @@ class BookingController extends Controller
     public function __construct(
         protected NotificationFallbackService $notify,
         protected VirtualAccountService $virtualAccounts,
+        protected SmsService $sms,
     ) {}
 
     protected function hotel(): Hotel
@@ -173,7 +176,7 @@ class BookingController extends Controller
 
     public function show(string $booking)
     {
-        $booking = $this->hotel()->bookings()->with(['room.media', 'guest', 'payments'])->findOrFail($booking);
+        $booking = $this->hotel()->bookings()->with(['room.media', 'guest', 'payments', 'roomServiceOrders.item'])->findOrFail($booking);
 
         return view('hotel.bookings.show', ['booking' => $booking]);
     }
@@ -245,8 +248,9 @@ class BookingController extends Controller
         DB::transaction(function () use ($booking) {
             $booking->update(['status' => 'checked_out', 'checked_out_at' => now()]);
             $booking->room->update(['status' => 'dirty']);
-            // Housekeeping task auto-creation attaches here once the Housekeeping module (Phase 4) exists.
         });
+
+        $this->createHousekeepingTask($booking);
 
         $overrideNote = $request->boolean('manager_override') ? " Checked out with manager override (balance ₦".number_format($booking->balanceNaira(), 2)."): {$request->input('override_reason')}." : '';
 
@@ -289,5 +293,41 @@ class BookingController extends Controller
     {
         $shortCode = Str::upper(Str::substr(preg_replace('/[^A-Za-z]/', '', $hotel->name), 0, 3)) ?: 'AFS';
         return "AFS-{$shortCode}-".now()->format('Ymd').'-'.Str::upper(Str::random(4));
+    }
+
+    /**
+     * Closes the loop's first step: checkout -> dirty -> [task assigned] -> cleaned -> verified -> available.
+     * Assigns to whichever housekeeper currently has the fewest open (non-verified) tasks.
+     * If the hotel has no housekeepers yet, the task is created unassigned and the
+     * manager is notified instead — the manager will need to assign it manually.
+     */
+    protected function createHousekeepingTask(Booking $booking): void
+    {
+        $hotel = $booking->hotel;
+
+        $housekeeper = $hotel->users()
+            ->where('role', 'housekeeper')
+            ->where('is_active', true)
+            ->get()
+            ->sortBy(fn ($hk) => HousekeepingTask::where('assigned_to', $hk->id)->where('status', '!=', 'verified')->count())
+            ->first();
+
+        $task = HousekeepingTask::create([
+            'room_id' => $booking->room_id,
+            'hotel_id' => $hotel->id,
+            'assigned_to' => $housekeeper?->id,
+            'triggered_by' => 'checkout',
+            'status' => 'pending',
+            'checklist' => HousekeepingTask::defaultChecklistFor($booking->room->type),
+        ]);
+
+        if ($housekeeper && $housekeeper->phone) {
+            $this->sms->send($housekeeper->phone, "Room {$booking->room->room_number} is ready for cleaning at {$hotel->name}.");
+        } elseif (! $housekeeper) {
+            $manager = $hotel->users()->whereIn('role', ['manager', 'owner'])->first();
+            if ($manager?->phone) {
+                $this->sms->send($manager->phone, "Room {$booking->room->room_number} needs cleaning, but no housekeeper is assigned yet. Please assign someone.");
+            }
+        }
     }
 }

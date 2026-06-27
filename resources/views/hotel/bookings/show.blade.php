@@ -67,6 +67,64 @@
 
         @if($booking->status === 'checked_in')
         <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Room Service &amp; Extras</h5>
+                @if(in_array(auth()->user()->role, ['owner','manager']))
+                <a href="{{ route('hotel.room-service.items') }}" class="btn btn-sm btn-outline-secondary">Manage Menu</a>
+                @endif
+            </div>
+            <div class="card-body">
+                @php $menuItems = $booking->hotel->roomServiceItems()->where('is_active', true)->get(); @endphp
+                @if($menuItems->isEmpty())
+                <p class="text-muted fs-13 mb-0">No menu items set up yet.
+                    @if(in_array(auth()->user()->role, ['owner','manager']))
+                    <a href="{{ route('hotel.room-service.items') }}">Add some</a>.
+                    @endif
+                </p>
+                @else
+                <form action="{{ route('hotel.room-service.orders.add', $booking->id) }}" method="POST" class="row g-2 align-items-end mb-3">
+                    @csrf
+                    <div class="col-md-5">
+                        <select name="item_id" class="form-select" required>
+                            <option value="">Select item...</option>
+                            @foreach($menuItems as $item)
+                            <option value="{{ $item->id }}">{{ $item->name }} — ₦{{ number_format($item->priceNaira(), 2) }} ({{ ucfirst($item->category) }})</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <input type="number" name="quantity" value="1" min="1" class="form-control" placeholder="Qty">
+                    </div>
+                    <div class="col-md-3">
+                        <input type="text" name="notes" class="form-control" placeholder="Notes (optional)">
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="feather-plus me-1"></i> Add
+                        </button>
+                    </div>
+                </form>
+                @endif
+
+                @if($booking->roomServiceOrders->count())
+                <table class="table table-sm mb-0">
+                    <tbody>
+                        @foreach($booking->roomServiceOrders as $order)
+                        <tr>
+                            <td>{{ $order->quantity }}x {{ $order->item->name }}</td>
+                            <td class="fw-bold">₦{{ number_format($order->totalPriceNaira(), 2) }}</td>
+                            <td><span class="badge bg-light text-dark text-capitalize">{{ str_replace('_',' ',$order->status) }}</span></td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+                @endif
+            </div>
+        </div>
+        @endif
+
+        @if($booking->status === 'checked_in')
+        <div class="card mb-3">
             <div class="card-header"><h5 class="card-title mb-0">Check Out</h5></div>
             <div class="card-body">
                 @if($booking->balance > 0)

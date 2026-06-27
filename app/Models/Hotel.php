@@ -13,6 +13,8 @@ class Hotel extends Model
         'name', 'slug', 'address', 'city', 'state', 'country', 'phone', 'email',
         'logo', 'description', 'tier', 'wallet_balance', 'owner_id', 'is_active',
         'onboarding_step', 'onboarding_completed', 'subscription_status', 'subscription_ends_at',
+        'online_booking_enabled', 'online_booking_deposit_percent', 'meta_title', 'meta_description',
+        'parent_hotel_id', 'brand_primary_color',
     ];
 
     protected function casts(): array
@@ -22,6 +24,7 @@ class Hotel extends Model
             'onboarding_completed' => 'boolean',
             'wallet_balance' => 'integer',
             'subscription_ends_at' => 'datetime',
+            'online_booking_enabled' => 'boolean',
         ];
     }
 
@@ -60,6 +63,8 @@ class Hotel extends Model
     ];
 
     public const MIN_WITHDRAWAL_KOBO = 1000000; // ₦10,000 minimum, per spec
+
+    public const MAX_LOCATIONS_PRO = 3; // Pro tier: "up to 3 locations" per spec
 
     public function owner()
     {
@@ -109,6 +114,86 @@ class Hotel extends Model
     public function activityLogs()
     {
         return $this->hasMany(ActivityLog::class);
+    }
+
+    public function housekeepingTasks()
+    {
+        return $this->hasMany(HousekeepingTask::class);
+    }
+
+    public function roomServiceItems()
+    {
+        return $this->hasMany(RoomServiceItem::class);
+    }
+
+    public function roomServiceOrders()
+    {
+        return $this->hasMany(RoomServiceOrder::class);
+    }
+
+    /** The primary hotel this is a child location of, or null if this IS the primary. */
+    public function parentHotel()
+    {
+        return $this->belongsTo(Hotel::class, 'parent_hotel_id');
+    }
+
+    /** Child locations under this hotel (only meaningful if this is a primary/standalone hotel). */
+    public function childLocations()
+    {
+        return $this->hasMany(Hotel::class, 'parent_hotel_id');
+    }
+
+    public function isPrimaryLocation(): bool
+    {
+        return $this->parent_hotel_id === null;
+    }
+
+    /** This hotel + all its child locations (or just itself if it's a child / has none) — for multi-location aggregation. */
+    public function allLocationIds(): array
+    {
+        if (! $this->isPrimaryLocation()) {
+            return [$this->id];
+        }
+
+        return $this->childLocations()->pluck('id')->push($this->id)->all();
+    }
+
+    public function totalLocationCount(): int
+    {
+        return $this->isPrimaryLocation() ? $this->childLocations()->count() + 1 : 1;
+    }
+
+    public function canAddLocation(): bool
+    {
+        return $this->tier === 'pro' && $this->isPrimaryLocation() && $this->totalLocationCount() < self::MAX_LOCATIONS_PRO;
+    }
+
+    public function staffLimit(): ?int
+    {
+        return self::TIER_STAFF_LIMITS[$this->tier] ?? null;
+    }
+
+    public function staffCount(): int
+    {
+        return $this->users()->where('role', '!=', 'owner')->count();
+    }
+
+    public function canInviteMoreStaff(): bool
+    {
+        $limit = $this->staffLimit();
+        return $limit === null || $this->staffCount() < $limit;
+    }
+
+    public function isApproachingStaffLimit(): bool
+    {
+        $limit = $this->staffLimit();
+        return $limit !== null && $this->staffCount() >= (int) floor($limit * 0.8);
+    }
+
+    public function isApproachingRoomLimit(): bool
+    {
+        $limit = self::TIER_ROOM_LIMITS[$this->tier] ?? null;
+        return $limit !== null && $this->rooms()->count() >= (int) floor($limit * 0.8);
     }
 
     public function walletBalanceNaira(): float

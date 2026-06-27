@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\EnsureOnboardingComplete;
 use App\Http\Middleware\EnsureSubscriptionActive;
+use App\Http\Middleware\ImpersonationReadOnly;
 use App\Http\Middleware\RedirectIfHotelAuthenticated;
 use App\Http\Middleware\RedirectIfPlatformAuthenticated;
 use Illuminate\Foundation\Application;
@@ -20,6 +21,7 @@ use Illuminate\Foundation\Configuration\Middleware;
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
+        api: __DIR__.'/../routes/api.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
@@ -29,6 +31,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'redirect.if.platform.authenticated' => RedirectIfPlatformAuthenticated::class,
             'onboarding.complete' => EnsureOnboardingComplete::class,
             'subscription.active' => EnsureSubscriptionActive::class,
+            'impersonation.readonly' => ImpersonationReadOnly::class,
         ]);
 
         // Flutterwave/Paystack POST here without a CSRF token — verified by

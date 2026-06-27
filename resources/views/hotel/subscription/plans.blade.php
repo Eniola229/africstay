@@ -93,10 +93,55 @@
         <div class="text-center mt-5">
             <p class="text-muted fs-13">
                 Running multiple locations or need a custom setup?
-                <a href="mailto:sales@africstayhms.com" class="auth-link">Talk to us about Enterprise</a>
+                <a href="#" class="auth-link" data-bs-toggle="modal" data-bs-target="#enterpriseModal">Talk to us about Enterprise</a>
             </p>
         </div>
 
+    </div>
+</div>
+
+<div class="modal fade" id="enterpriseModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Tell us about your hotels</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{{ route('public.enterprise-inquiry.store') }}" method="POST">
+                @csrf
+                <div class="modal-body">
+                    @if(session('success'))<div class="alert alert-success">{{ session('success') }}</div>@endif
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Your name</label>
+                        <input type="text" name="contact_name" class="form-control @error('contact_name') is-invalid @enderror" required>
+                        @error('contact_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Hotel / group name</label>
+                        <input type="text" name="hotel_name" value="{{ $hotel->name }}" class="form-control @error('hotel_name') is-invalid @enderror" required>
+                        @error('hotel_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="form-label fw-bold">Email</label>
+                            <input type="email" name="email" class="form-control @error('email') is-invalid @enderror">
+                            @error('email')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label class="form-label fw-bold">Phone</label>
+                            <input type="text" name="phone" value="{{ $hotel->phone }}" class="form-control">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Tell us a bit about your setup</label>
+                        <textarea name="message" rows="3" class="form-control"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-primary">Send to AfricStay Sales</button>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 

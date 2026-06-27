@@ -33,6 +33,11 @@ class Room extends Model
         return $this->hasMany(RoomMedia::class)->orderBy('sort_order');
     }
 
+    public function housekeepingTasks()
+    {
+        return $this->hasMany(HousekeepingTask::class);
+    }
+
     public function images()
     {
         return $this->media()->where('type', 'image');

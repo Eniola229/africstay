@@ -70,17 +70,24 @@
                 @endif
 
                 @if(in_array($role, ['owner','manager','room_service']))
-                <li class="nxl-item {{ request()->routeIs('hotel.room-service*') ? 'active' : '' }}">
-                    <a href="#" class="nxl-link">
+                <li class="nxl-item nxl-hasmenu {{ request()->routeIs('hotel.room-service*') ? 'active' : '' }}">
+                    <a href="javascript:void(0);" class="nxl-link">
                         <span class="nxl-micon"><i class="feather-coffee"></i></span>
                         <span class="nxl-mtext">Room Service</span>
+                        <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
                     </a>
+                    <ul class="nxl-submenu">
+                        <li class="nxl-item"><a class="nxl-link" href="{{ route('hotel.room-service.orders') }}">Orders</a></li>
+                        @if(in_array($role, ['owner','manager']))
+                        <li class="nxl-item"><a class="nxl-link" href="{{ route('hotel.room-service.items') }}">Menu Setup</a></li>
+                        @endif
+                    </ul>
                 </li>
                 @endif
 
                 @if(in_array($role, ['owner','manager','housekeeper']))
                 <li class="nxl-item {{ request()->routeIs('hotel.housekeeping*') ? 'active' : '' }}">
-                    <a href="#" class="nxl-link">
+                    <a href="{{ route('hotel.housekeeping.index') }}" class="nxl-link">
                         <span class="nxl-micon"><i class="feather-clipboard"></i></span>
                         <span class="nxl-mtext">Housekeeping</span>
                     </a>
@@ -89,16 +96,25 @@
 
                 @if(in_array($role, ['owner','manager']))
                 <li class="nxl-item {{ request()->routeIs('hotel.staff*') ? 'active' : '' }}">
-                    <a href="#" class="nxl-link">
+                    <a href="{{ route('hotel.staff.index') }}" class="nxl-link">
                         <span class="nxl-micon"><i class="feather-users"></i></span>
                         <span class="nxl-mtext">Staff</span>
                     </a>
                 </li>
                 @endif
 
+                @if($role === 'owner' && auth()->user()->hotel->tier === 'pro')
+                <li class="nxl-item {{ request()->routeIs('hotel.locations*') ? 'active' : '' }}">
+                    <a href="{{ route('hotel.locations.index') }}" class="nxl-link">
+                        <span class="nxl-micon"><i class="feather-map-pin"></i></span>
+                        <span class="nxl-mtext">Locations</span>
+                    </a>
+                </li>
+                @endif
+
                 @if(in_array($role, ['owner','manager','accountant']))
                 <li class="nxl-item {{ request()->routeIs('hotel.reports*') ? 'active' : '' }}">
-                    <a href="#" class="nxl-link">
+                    <a href="{{ route('hotel.reports.index') }}" class="nxl-link">
                         <span class="nxl-micon"><i class="feather-bar-chart-2"></i></span>
                         <span class="nxl-mtext">Reports</span>
                     </a>
@@ -117,8 +133,11 @@
                         <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
                     </a>
                     <ul class="nxl-submenu">
-                        <li class="nxl-item"><a class="nxl-link" href="#">Hotel Profile</a></li>
+                        <li class="nxl-item"><a class="nxl-link" href="{{ route('hotel.settings.index') }}">Hotel Profile</a></li>
                         <li class="nxl-item"><a class="nxl-link" href="{{ route('hotel.subscription.plans') }}">Subscription &amp; Tier</a></li>
+                        @if(in_array(auth()->user()->hotel->tier, ['pro','enterprise']))
+                        <li class="nxl-item"><a class="nxl-link" href="{{ route('hotel.settings.api.show') }}">API Access</a></li>
+                        @endif
                     </ul>
                 </li>
                 @endif

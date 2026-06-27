@@ -55,6 +55,11 @@ class Booking extends Model
         return $this->hasMany(Payment::class);
     }
 
+    public function roomServiceOrders()
+    {
+        return $this->hasMany(RoomServiceOrder::class);
+    }
+
     /**
      * The core double-booking guard: does any OTHER active booking for this
      * room overlap these dates? Active = not cancelled, not already checked out.
