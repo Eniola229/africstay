@@ -28,6 +28,7 @@ use App\Http\Controllers\Public\EnterpriseInquiryController;
 use App\Http\Controllers\Public\HotelPublicController;
 use App\Http\Controllers\Webhooks\FlutterwaveWebhookController;
 use App\Http\Controllers\Webhooks\PaystackWebhookController;
+use App\Http\Controllers\Platform\DashboardController as PlatformDashboardController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -36,6 +37,8 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 */
 Route::view('/', 'welcome')->name('home');
+Route::view('/terms-of-service', 'legal.terms-of-service')->name('legal.terms');
+Route::view('privacy-policy', 'legal.privacy-policy')->name('legal.privacy');
 
 /*
 |--------------------------------------------------------------------------
@@ -158,6 +161,8 @@ Route::middleware(['auth:web', 'subscription.active', 'onboarding.complete', 'im
         Route::get('/', [WalletController::class, 'index'])->name('index');
         Route::get('/withdrawals', [WalletController::class, 'withdrawals'])->name('withdrawals');
         Route::post('/withdrawals', [WalletController::class, 'storeWithdrawal'])->name('withdrawals.store');
+        Route::get('/banks',          [WalletController::class, 'listBanks'])->name('banks');
+        Route::get('/verify-account', [WalletController::class, 'verifyAccount'])->name('verify-account');
     });
 
     Route::prefix('settings')->name('hotel.settings.')->group(function () {
@@ -234,7 +239,7 @@ Route::prefix('platform')->name('platform.')->group(function () {
     Route::post('/logout', [PlatformLoginController::class, 'logout'])->middleware('auth:platform')->name('logout');
 
     Route::middleware('auth:platform')->group(function () {
-        Route::view('/dashboard', 'platform.dashboard')->name('dashboard');
+        Route::get('/dashboard', [PlatformDashboardController::class, 'index'])->name('dashboard');
 
         Route::prefix('hotels')->name('hotels.')->group(function () {
             Route::get('/', [HotelManagementController::class, 'index'])->name('index');

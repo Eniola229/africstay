@@ -5,7 +5,7 @@
     <div class="auth-left-panel">
         <div class="auth-left-inner">
             <div class="auth-panel-logo">
-                <img src="{{ asset('dashboard/assets/images/favicon.png') }}"
+                <img src="{{ asset('ashboard/assets/images/favicon.png') }}"
                      style="height:32px;filter:brightness(0) invert(1);" alt="AfricStay">
                 <span>AfricStay</span>
             </div>
@@ -40,7 +40,7 @@
     <div class="auth-right-panel">
         <div class="auth-form-box">
             <a href="{{ route('home') }}">
-                <img src="{{ asset('dashboard/assets/images/favicon.png') }}"
+                <img src="{{ asset('ashboard/assets/images/favicon.png') }}"
                      class="auth-logo-img" alt="AfricStay">
             </a>
             <h2>Set new password</h2>

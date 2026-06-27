@@ -4,8 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Booking Confirmed — {{ $hotel->name }}</title>
-    <link rel="stylesheet" href="{{ asset('dashboard/assets/css/bootstrap.min.css') }}">
-    <link rel="stylesheet" href="{{ asset('dashboard/assets/css/africstay-theme.css') }}">
+    <link rel="stylesheet" href="{{ asset('ashboard/assets/css/bootstrap.min.css') }}">
+    <link rel="stylesheet" href="{{ asset('ashboard/assets/css/africstay-theme.css') }}">
 </head>
 <body style="background:#f4f6f8;">
 <div class="container py-5" style="max-width:600px;">

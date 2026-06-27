@@ -27,9 +27,21 @@ class HotelManagementController extends Controller
         if ($tier = $request->query('tier')) {
             $query->where('tier', $tier);
         }
+        if ($status = $request->query('subscription_status')) {
+            $query->where('subscription_status', $status);
+        }
+
+        // ── Stats (always unfiltered — full picture at a glance) ────
+        $base = Hotel::whereNull('parent_hotel_id');
+
+        $countByStatus = (clone $base)
+            ->selectRaw('subscription_status, COUNT(*) as count')
+            ->groupBy('subscription_status')
+            ->pluck('count', 'subscription_status');
 
         return view('platform.hotels.index', [
-            'hotels' => $query->latest()->paginate(20)->withQueryString(),
+            'hotels'        => $query->latest()->paginate(20)->withQueryString(),
+            'countByStatus' => $countByStatus,
         ]);
     }
 
@@ -39,8 +51,8 @@ class HotelManagementController extends Controller
         $hotel = Hotel::with(['owner', 'subscriptions', 'childLocations'])->findOrFail($hotel);
 
         return view('platform.hotels.show', [
-            'hotel' => $hotel,
-            'payments' => $hotel->payments()->latest()->take(20)->get(),
+            'hotel'       => $hotel,
+            'payments'    => $hotel->payments()->latest()->take(20)->get(),
             'withdrawals' => $hotel->withdrawals()->latest()->take(10)->get(),
         ]);
     }
@@ -53,12 +65,17 @@ class HotelManagementController extends Controller
 
         $hotel->update(['is_active' => ! $hotel->is_active]);
 
-        PlatformActivityLog::record(Auth::guard('platform')->user(), $hotel->is_active ? 'ACTIVATE_HOTEL' : 'DEACTIVATE_HOTEL', 'hotel_management',
+        PlatformActivityLog::record(
+            Auth::guard('platform')->user(),
+            $hotel->is_active ? 'ACTIVATE_HOTEL' : 'DEACTIVATE_HOTEL',
+            'hotel_management',
             'Hotel', $hotel->id, $hotel->name,
-            Auth::guard('platform')->user()->name.' '.($hotel->is_active ? 'activated' : 'deactivated')." {$hotel->name}.",
-            ['is_active' => $old], ['is_active' => $hotel->is_active]);
+            Auth::guard('platform')->user()->name . ' ' . ($hotel->is_active ? 'activated' : 'deactivated') . " {$hotel->name}.",
+            ['is_active' => $old],
+            ['is_active' => $hotel->is_active]
+        );
 
-        return back()->with('success', "{$hotel->name} has been ".($hotel->is_active ? 'activated' : 'deactivated').'.');
+        return back()->with('success', "{$hotel->name} has been " . ($hotel->is_active ? 'activated' : 'deactivated') . '.');
     }
 
     public function changeTier(Request $request, string $hotel)
@@ -67,16 +84,22 @@ class HotelManagementController extends Controller
         $hotel = Hotel::findOrFail($hotel);
 
         $validated = $request->validate([
-            'tier' => ['required', 'in:starter,growth,pro,enterprise'],
+            'tier'   => ['required', 'in:starter,growth,pro,enterprise'],
             'reason' => ['required', 'string', 'max:255'],
         ]);
 
         $old = $hotel->tier;
         $hotel->update(['tier' => $validated['tier']]);
 
-        PlatformActivityLog::record(Auth::guard('platform')->user(), 'CHANGE_TIER', 'hotel_management', 'Hotel', $hotel->id, $hotel->name,
-            Auth::guard('platform')->user()->name." changed tier for {$hotel->name} from {$old} to {$validated['tier']}. Reason: {$validated['reason']}.",
-            ['tier' => $old], ['tier' => $validated['tier']]);
+        PlatformActivityLog::record(
+            Auth::guard('platform')->user(),
+            'CHANGE_TIER',
+            'hotel_management',
+            'Hotel', $hotel->id, $hotel->name,
+            Auth::guard('platform')->user()->name . " changed tier for {$hotel->name} from {$old} to {$validated['tier']}. Reason: {$validated['reason']}.",
+            ['tier' => $old],
+            ['tier' => $validated['tier']]
+        );
 
         return back()->with('success', "Tier changed to {$validated['tier']}.");
     }
@@ -102,8 +125,13 @@ class HotelManagementController extends Controller
         \Illuminate\Support\Facades\Auth::guard('web')->login($hotel->owner);
         session(['platform_impersonating_hotel_id' => $hotel->id]);
 
-        PlatformActivityLog::record(Auth::guard('platform')->user(), 'IMPERSONATE_HOTEL', 'impersonation', 'Hotel', $hotel->id, $hotel->name,
-            Auth::guard('platform')->user()->name." started read-only impersonation of {$hotel->name}.");
+        PlatformActivityLog::record(
+            Auth::guard('platform')->user(),
+            'IMPERSONATE_HOTEL',
+            'impersonation',
+            'Hotel', $hotel->id, $hotel->name,
+            Auth::guard('platform')->user()->name . " started read-only impersonation of {$hotel->name}."
+        );
 
         return redirect()->route('hotel.dashboard');
     }

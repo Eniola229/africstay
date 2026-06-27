@@ -18,9 +18,7 @@ use Illuminate\Support\Str;
  * 4-step onboarding wizard, run right after owner registration.
  *  Step 1: hotel details (address, city, state, phone, optional email/logo)
  *  Step 2: choose subscription tier + billing cycle -> redirects to PAID checkout
- *          (Flutterwave/Paystack). Steps 3 & 4 are only reachable once payment
- *          is confirmed — see EnsureSubscriptionActive middleware.
- *  Step 3: add rooms, with photos/videos (skippable)
+ *  Step 3: add rooms with photos/videos (skippable)
  *  Step 4: invite first staff member (optional)
  */
 class OnboardingController extends Controller
@@ -46,16 +44,13 @@ class OnboardingController extends Controller
         $step = (int) $request->query('step', $hotel->onboarding_step);
         $step = max(1, min(4, $step));
 
-        // Can't reach steps 3/4 in the wizard view without an active subscription —
-        // bounce back to the plan picker (EnsureSubscriptionActive also guards this
-        // at the route level, this just keeps the wizard's own step numbers sane).
         if ($step >= 3 && $hotel->subscription_status === 'pending_payment') {
             return redirect()->route('hotel.subscription.plans');
         }
 
         return view('onboarding.wizard', [
-            'hotel' => $hotel,
-            'step' => $step,
+            'hotel'     => $hotel,
+            'step'      => $step,
             'roomTypes' => ['standard', 'deluxe', 'suite', 'family'],
         ]);
     }
@@ -66,19 +61,19 @@ class OnboardingController extends Controller
         $hotel = $this->hotel();
 
         $validated = $request->validate([
-            'address' => ['required', 'string', 'max:255'],
-            'city' => ['required', 'string', 'max:100'],
-            'state' => ['required', 'string', 'max:100'],
-            'phone' => ['required', 'string', 'max:20'],
-            'email' => ['nullable', 'email', 'max:150'],
+            'address'     => ['required', 'string', 'max:255'],
+            'city'        => ['required', 'string', 'max:100'],
+            'state'       => ['required', 'string', 'max:100'],
+            'phone'       => ['required', 'string', 'max:20'],
+            'email'       => ['nullable', 'email', 'max:150'],
             'description' => ['nullable', 'string', 'max:1000'],
-            'logo_url' => ['nullable', 'url'],
+            'logo_url'    => ['nullable', 'url'],
         ]);
 
         $hotel->update([
             ...$validated,
-            'logo' => $validated['logo_url'] ?? $hotel->logo,
-            'onboarding_step' => 2,
+            'logo'             => $validated['logo_url'] ?? $hotel->logo,
+            'onboarding_step'  => 2,
         ]);
 
         ActivityLog::record($hotel->id, Auth::user(), 'UPDATE_HOTEL_DETAILS', 'settings', 'Hotel', $hotel->id, $hotel->name,
@@ -87,16 +82,11 @@ class OnboardingController extends Controller
         return redirect()->route('onboarding.show', ['step' => 2]);
     }
 
-    /**
-     * Step 2 — choose tier + billing cycle. This does NOT activate anything
-     * itself — it hands off to the paid checkout flow. The hotel only reaches
-     * step 3 after SubscriptionBillingService::confirmPayment() runs from a
-     * verified webhook.
-     */
+    /** Step 2 — choose tier + billing cycle. */
     public function saveTier(Request $request)
     {
         $validated = $request->validate([
-            'tier' => ['required', 'in:starter,growth,pro,enterprise'],
+            'tier'          => ['required', 'in:starter,growth,pro,enterprise'],
             'billing_cycle' => ['required', 'in:monthly,yearly'],
         ]);
 
@@ -106,11 +96,11 @@ class OnboardingController extends Controller
 
             \App\Models\EnterpriseInquiry::create([
                 'contact_name' => $owner->name,
-                'hotel_name' => $hotel->name,
-                'email' => $owner->email,
-                'phone' => $owner->phone,
-                'message' => 'Selected Enterprise during onboarding.',
-                'status' => 'new',
+                'hotel_name'   => $hotel->name,
+                'email'        => $owner->email,
+                'phone'        => $owner->phone,
+                'message'      => 'Selected Enterprise during onboarding.',
+                'status'       => 'new',
             ]);
 
             return redirect()->route('onboarding.show', ['step' => 2])
@@ -118,7 +108,7 @@ class OnboardingController extends Controller
         }
 
         return redirect()->route('hotel.subscription.checkout.start', [
-            'tier' => $validated['tier'],
+            'tier'          => $validated['tier'],
             'billing_cycle' => $validated['billing_cycle'],
         ]);
     }
@@ -134,51 +124,59 @@ class OnboardingController extends Controller
         }
 
         $validated = $request->validate([
-            'rooms' => ['required', 'array', 'min:1'],
-            'rooms.*.room_number' => ['required', 'string', 'max:20'],
-            'rooms.*.type' => ['required', 'in:standard,deluxe,suite,family'],
-            'rooms.*.price_per_night' => ['required', 'numeric', 'min:0'],
-            'rooms.*.max_guests' => ['nullable', 'integer', 'min:1', 'max:20'],
-            'rooms.*.images' => ['nullable', 'array'],
-            'rooms.*.images.*.url' => ['required_with:rooms.*.images', 'url'],
-            'rooms.*.images.*.public_id' => ['nullable', 'string'],
-            'rooms.*.videos' => ['nullable', 'array'],
-            'rooms.*.videos.*.url' => ['required_with:rooms.*.videos', 'url'],
-            'rooms.*.videos.*.public_id' => ['nullable', 'string'],
+            'rooms'                          => ['required', 'array', 'min:1'],
+            'rooms.*.room_number'            => ['required', 'string', 'max:20'],
+            'rooms.*.type'                   => ['required', 'in:standard,deluxe,suite,family'],
+            'rooms.*.pricing_unit'           => ['required', 'in:night,hour,day24'],
+            'rooms.*.price_per_night'        => ['required', 'numeric', 'min:0'],
+            'rooms.*.max_guests'             => ['nullable', 'integer', 'min:1', 'max:20'],
+            'rooms.*.images'                 => ['nullable', 'array'],
+            'rooms.*.images.*'               => ['nullable', 'array'],
+            'rooms.*.images.*.url'           => ['nullable', 'url'],
+            'rooms.*.images.*.public_id'     => ['nullable', 'string'],
+            'rooms.*.videos'                 => ['nullable', 'array'],
+            'rooms.*.videos.*'               => ['nullable', 'array'],
+            'rooms.*.videos.*.url'           => ['nullable', 'url'],
+            'rooms.*.videos.*.public_id'     => ['nullable', 'string'],
         ]);
 
-        $limit = Hotel::TIER_ROOM_LIMITS[$hotel->tier];
+        $limit         = Hotel::TIER_ROOM_LIMITS[$hotel->tier];
         $existingCount = $hotel->rooms()->count();
+
         if ($limit !== null && ($existingCount + count($validated['rooms'])) > $limit) {
             return back()->withErrors(['rooms' => "Your {$hotel->tier} tier allows up to {$limit} rooms total."]);
         }
 
         foreach ($validated['rooms'] as $roomData) {
             $room = Room::create([
-                'hotel_id' => $hotel->id,
-                'room_number' => $roomData['room_number'],
-                'type' => $roomData['type'],
+                'hotel_id'     => $hotel->id,
+                'room_number'  => $roomData['room_number'],
+                'type'         => $roomData['type'],
+                'pricing_unit' => $roomData['pricing_unit'] ?? 'night',
                 'price_per_night' => (int) round($roomData['price_per_night'] * 100),
-                'max_guests' => $roomData['max_guests'] ?? 2,
-                'status' => 'available',
+                'max_guests'   => $roomData['max_guests'] ?? 2,
+                'status'       => 'available',
             ]);
 
-            foreach (($roomData['images'] ?? []) as $i => $image) {
+            $images = collect($roomData['images'] ?? [])->filter(fn ($img) => ! blank($img['url'] ?? null))->values();
+            $videos = collect($roomData['videos'] ?? [])->filter(fn ($vid) => ! blank($vid['url'] ?? null))->values();
+
+            foreach ($images as $i => $image) {
                 $room->media()->create([
-                    'type' => 'image',
-                    'url' => $image['url'],
+                    'type'                 => 'image',
+                    'url'                  => $image['url'],
                     'cloudinary_public_id' => $image['public_id'] ?? null,
-                    'is_primary' => $i === 0,
-                    'sort_order' => $i,
+                    'is_primary'           => $i === 0,
+                    'sort_order'           => $i,
                 ]);
             }
 
-            foreach (($roomData['videos'] ?? []) as $i => $video) {
+            foreach ($videos as $i => $video) {
                 $room->media()->create([
-                    'type' => 'video',
-                    'url' => $video['url'],
+                    'type'                 => 'video',
+                    'url'                  => $video['url'],
                     'cloudinary_public_id' => $video['public_id'] ?? null,
-                    'sort_order' => $i,
+                    'sort_order'           => $i,
                 ]);
             }
         }
@@ -201,8 +199,8 @@ class OnboardingController extends Controller
         }
 
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:100'],
-            'role' => ['required', 'in:manager,receptionist,cashier,housekeeper,room_service,accountant'],
+            'name'  => ['required', 'string', 'max:100'],
+            'role'  => ['required', 'in:manager,receptionist,cashier,housekeeper,room_service,accountant'],
             'email' => ['nullable', 'email', 'max:150'],
             'phone' => ['nullable', 'string', 'max:20'],
         ]);
@@ -214,14 +212,14 @@ class OnboardingController extends Controller
         $token = Str::random(40);
 
         $staff = User::create([
-            'hotel_id' => $hotel->id,
-            'name' => $validated['name'],
-            'email' => $validated['email'] ?? null,
-            'phone' => $validated['phone'] ?? null,
-            'password' => Hash::make(Str::random(24)),
-            'role' => $validated['role'],
-            'is_active' => true,
-            'invite_token' => $token,
+            'hotel_id'          => $hotel->id,
+            'name'              => $validated['name'],
+            'email'             => $validated['email'] ?? null,
+            'phone'             => $validated['phone'] ?? null,
+            'password'          => Hash::make(Str::random(24)),
+            'role'              => $validated['role'],
+            'is_active'         => true,
+            'invite_token'      => $token,
             'invite_expires_at' => now()->addDays(7),
             'must_set_password' => true,
         ]);

@@ -6,12 +6,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>AfricStay || @yield('title', 'Dashboard')</title>
-    <link rel="shortcut icon" type="image/x-icon" href="{{ asset('dashboard/assets/images/favicon.png') }}" />
-    <link rel="stylesheet" type="text/css" href="{{ asset('dashboard/assets/css/bootstrap.min.css') }}" />
-    <link rel="stylesheet" type="text/css" href="{{ asset('dashboard/assets/vendors/css/vendors.min.css') }}" />
-    <link rel="stylesheet" type="text/css" href="{{ asset('dashboard/assets/vendors/css/daterangepicker.min.css') }}" />
-    <link rel="stylesheet" type="text/css" href="{{ asset('dashboard/assets/css/theme.min.css') }}" />
-    <link rel="stylesheet" type="text/css" href="{{ asset('dashboard/assets/css/africstay-theme.css') }}" />
+    <link rel="shortcut icon" type="image/x-icon" href="{{ asset('ashboard/assets/images/favicon.png') }}" />
+    <link rel="stylesheet" type="text/css" href="{{ asset('ashboard/assets/css/bootstrap.min.css') }}" />
+    <link rel="stylesheet" type="text/css" href="{{ asset('ashboard/assets/vendors/css/vendors.min.css') }}" />
+    <link rel="stylesheet" type="text/css" href="{{ asset('ashboard/assets/vendors/css/daterangepicker.min.css') }}" />
+    <link rel="stylesheet" type="text/css" href="{{ asset('ashboard/assets/css/theme.min.css') }}" />
+    <link rel="stylesheet" type="text/css" href="{{ asset('ashboard/assets/css/orderer-theme.css') }}" />
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     @stack('head')
     @stack('styles')
@@ -59,16 +59,16 @@
 
     </div>
 </main>
-
+ @include('hotel.partials.checkout-due-popup')
 @include('layouts.partials.hotel-footer')
 
-<script src="{{ asset('dashboard/assets/vendors/js/vendors.min.js') }}"></script>
-<script src="{{ asset('dashboard/assets/vendors/js/daterangepicker.min.js') }}"></script>
-<script src="{{ asset('dashboard/assets/vendors/js/apexcharts.min.js') }}"></script>
-<script src="{{ asset('dashboard/assets/vendors/js/circle-progress.min.js') }}"></script>
-<script src="{{ asset('dashboard/assets/js/common-init.min.js') }}"></script>
-<script src="{{ asset('dashboard/assets/js/dashboard-init.min.js') }}"></script>
-<script src="{{ asset('dashboard/assets/js/theme-customizer-init.min.js') }}"></script>
+<script src="{{ asset('ashboard/assets/vendors/js/vendors.min.js') }}"></script>
+<script src="{{ asset('ashboard/assets/vendors/js/daterangepicker.min.js') }}"></script>
+<script src="{{ asset('ashboard/assets/vendors/js/apexcharts.min.js') }}"></script>
+<script src="{{ asset('ashboard/assets/vendors/js/circle-progress.min.js') }}"></script>
+<script src="{{ asset('ashboard/assets/js/common-init.min.js') }}"></script>
+<script src="{{ asset('ashboard/assets/js/dashboard-init.min.js') }}"></script>
+<script src="{{ asset('ashboard/assets/js/theme-customizer-init.min.js') }}"></script>
 @stack('scripts')
 </body>
 </html>

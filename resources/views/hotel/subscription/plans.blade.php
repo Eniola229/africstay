@@ -1,14 +1,24 @@
 @extends('layouts.auth')
 @section('title', 'Choose Your Plan')
 @section('content')
-<div class="auth-main" style="display:block; padding:40px 20px;">
+<style>
+.plans-grid {
+    grid-template-columns: 1fr;
+}
+@media (min-width: 768px) {
+    .plans-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+</style>
+<div class="auth-main" style="display:block; padding:20px 15px;">
 
     <div style="max-width:1100px; margin:0 auto;">
 
-        <div class="text-center mb-5">
-            <img src="{{ asset('dashboard/assets/images/favicon.png') }}" style="height:40px;" alt="AfricStay">
-            <h2 class="fw-bold mt-3 mb-2">Choose a plan for {{ $hotel->name }}</h2>
-            <p class="text-muted">
+        <div class="text-center mb-4" style="margin-bottom: 24px;">
+            <img src="{{ asset('ashboard/assets/images/favicon.png') }}" style="height:40px;" alt="AfricStay">
+            <h2 class="fw-bold mt-3 mb-2" style="font-size: clamp(20px, 5vw, 28px);">Choose a plan for {{ $hotel->name }}</h2>
+            <p class="text-muted" style="font-size: clamp(13px, 4vw, 15px);">
                 @if($hotel->subscription_status === 'pending_payment')
                     One more step — activate your account to unlock rooms, bookings and payments.
                 @else
@@ -21,16 +31,16 @@
         </div>
 
         {{-- Billing cycle toggle --}}
-        <div class="d-flex justify-content-center mb-5">
-            <div class="btn-group" role="group" id="billingToggle">
-                <button type="button" class="btn btn-outline-primary active" data-cycle="monthly">Monthly</button>
-                <button type="button" class="btn btn-outline-primary" data-cycle="yearly">
-                    Yearly <span class="badge bg-success ms-1">Save 20%</span>
+        <div style="display: flex; justify-content: center; margin-bottom: 32px; padding: 0 10px;">
+            <div id="billingToggle" style="border: 1px solid #2ECC71; border-radius: 8px; overflow: hidden; background: white; display: flex; width: 100%; max-width: 400px;">
+                <button type="button" class="btn active" data-cycle="monthly" style="flex: 1; background: #2ECC71; color: white; border: none; padding: 12px 16px; font-weight: 600; border-radius: 0; font-size: 14px; cursor: pointer;">Monthly</button>
+                <button type="button" class="btn" data-cycle="yearly" style="flex: 1; background: white; color: #2ECC71; border: none; border-left: 1px solid #2ECC71; padding: 12px 16px; font-weight: 600; font-size: 14px; cursor: pointer;">
+                    Yearly <span class="badge ms-1" style="background: #2ECC71; color: white; font-size: 11px;">Save 20%</span>
                 </button>
             </div>
         </div>
 
-        <div class="row g-4">
+        <div class="plans-grid" style="display: grid; gap: 20px; margin-bottom: 32px;">
             @foreach($tiers as $tierKey => $pricing)
             @php
                 $labels = ['starter' => 'Starter', 'growth' => 'Growth', 'pro' => 'Pro'];
@@ -38,62 +48,82 @@
                 $roomLabels = ['starter' => 'Up to 15 rooms', 'growth' => 'Up to 50 rooms', 'pro' => 'Unlimited rooms'];
                 $highlight = $tierKey === 'growth';
             @endphp
-            <div class="col-md-4">
-                <div class="card h-100 {{ $highlight ? 'border-primary shadow-lg' : '' }}" style="{{ $highlight ? 'transform:scale(1.02);' : '' }}">
-                    @if($highlight)
-                    <div class="text-center text-white fw-bold py-1" style="background:var(--bs-primary,#2ECC71);font-size:12px;letter-spacing:.5px;">
-                        MOST POPULAR
+            <div style="border: 2px solid {{ $highlight ? '#2ECC71' : '#e5e7eb' }}; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; {{ $highlight ? 'box-shadow: 0 10px 30px rgba(46, 204, 113, 0.2);' : '' }}">
+                @if($highlight)
+                <div class="text-center text-white fw-bold py-2" style="background: linear-gradient(135deg, #2ECC71, #27AE60); font-size: 12px; letter-spacing: 1px;">
+                    MOST POPULAR
+                </div>
+                @endif
+                <div style="padding: 24px 20px; text-align: center; flex: 1; display: flex; flex-direction: column;">
+                    <h4 class="fw-bold" style="color: #0f172a; margin-bottom: 16px; font-size: clamp(18px, 5vw, 20px);">{{ $labels[$tierKey] }}</h4>
+
+                    <div style="margin-bottom: 20px;">
+                        <span class="price-monthly" style="display: block;">
+                            <span style="font-size: clamp(24px, 8vw, 32px); font-weight: 700; color: #0f172a;">₦{{ number_format($pricing['monthly'] / 100) }}</span>
+                            <span class="text-muted" style="font-size: 14px;">/month</span>
+                        </span>
+                        <span class="price-yearly" style="display:none;">
+                            <span style="font-size: clamp(24px, 8vw, 32px); font-weight: 700; color: #0f172a;">₦{{ number_format($pricing['yearly'] / 100) }}</span>
+                            <span class="text-muted" style="font-size: 14px;">/year</span>
+                            <div class="text-muted" style="font-size: 12px; text-decoration: line-through; margin-top: 4px;">
+                                ₦{{ number_format($pricing['yearly_full_price'] / 100) }}
+                            </div>
+                        </span>
                     </div>
-                    @endif
-                    <div class="card-body text-center d-flex flex-column">
-                        <h4 class="fw-bold">{{ $labels[$tierKey] }}</h4>
 
-                        <div class="my-3">
-                            <span class="price-monthly">
-                                <span class="fs-2 fw-bold">₦{{ number_format($pricing['monthly'] / 100) }}</span>
-                                <span class="text-muted">/month</span>
-                            </span>
-                            <span class="price-yearly" style="display:none;">
-                                <span class="fs-2 fw-bold">₦{{ number_format($pricing['yearly'] / 100) }}</span>
-                                <span class="text-muted">/year</span>
-                                <div class="text-muted fs-13 text-decoration-line-through">
-                                    ₦{{ number_format($pricing['yearly_full_price'] / 100) }}
-                                </div>
-                            </span>
-                        </div>
+                    <p class="text-muted" style="font-size: 12px; margin-bottom: 20px;">{{ $roomLabels[$tierKey] }} · Transaction fee {{ $feeLabels[$tierKey] }}</p>
 
-                        <p class="text-muted fs-13 mb-4">{{ $roomLabels[$tierKey] }} · Transaction fee {{ $feeLabels[$tierKey] }}</p>
+                    <ul style="list-style: none; padding: 0; text-align: left; margin-bottom: 24px; flex-grow: 1; font-size: 13px;">
+                        @if($tierKey === 'starter')
+                            <li style="margin-bottom: 10px;"><i class="feather-check-circle" style="color: #2ECC71; margin-right: 8px;"></i> Room management &amp; booking</li>
+                            <li style="margin-bottom: 10px;"><i class="feather-check-circle" style="color: #2ECC71; margin-right: 8px;"></i> Check-in &amp; check-out</li>
+                            <li style="margin-bottom: 10px;"><i class="feather-check-circle" style="color: #2ECC71; margin-right: 8px;"></i> Virtual account payment per guest</li>
+                            <li style="margin-bottom: 10px;"><i class="feather-check-circle" style="color: #2ECC71; margin-right: 8px;"></i> Basic daily revenue report</li>
+                            <li style="margin-bottom: 10px;"><i class="feather-check-circle" style="color: #2ECC71; margin-right: 8px;"></i> Online booking page</li>
+                            <li style="margin-bottom: 10px;"><i class="feather-check-circle" style="color: #2ECC71; margin-right: 8px;"></i> Email support</li>
+                            <li style="margin-bottom: 10px; color: #9ca3af;"><i class="feather-x" style="color: #d1d5db; margin-right: 8px;"></i> Housekeeping &amp; room service</li>
+                            <li style="margin-bottom: 10px; color: #9ca3af;"><i class="feather-x" style="color: #d1d5db; margin-right: 8px;"></i> SMS notifications</li>
+                            <li style="margin-bottom: 10px; color: #9ca3af;"><i class="feather-x" style="color: #d1d5db; margin-right: 8px;"></i> Multi-location dashboard</li>
+                            <li style="color: #9ca3af;"><i class="feather-x" style="color: #d1d5db; margin-right: 8px;"></i> API access</li>
+                        @elseif($tierKey === 'growth')
+                            <li style="margin-bottom: 10px;"><i class="feather-check-circle" style="color: #2ECC71; margin-right: 8px;"></i> Everything in Starter</li>
+                            <li style="margin-bottom: 10px;"><i class="feather-check-circle" style="color: #2ECC71; margin-right: 8px;"></i> Housekeeping management</li>
+                            <li style="margin-bottom: 10px;"><i class="feather-check-circle" style="color: #2ECC71; margin-right: 8px;"></i> Room service &amp; extras</li>
+                            <li style="margin-bottom: 10px;"><i class="feather-check-circle" style="color: #2ECC71; margin-right: 8px;"></i> Role-based staff management</li>
+                            <li style="margin-bottom: 10px;"><i class="feather-check-circle" style="color: #2ECC71; margin-right: 8px;"></i> Full financial reports</li>
+                            <li style="margin-bottom: 10px;"><i class="feather-check-circle" style="color: #2ECC71; margin-right: 8px;"></i> SMS notifications</li>
+                            <li style="margin-bottom: 10px;"><i class="feather-check-circle" style="color: #2ECC71; margin-right: 8px;"></i> Withdraw to bank anytime</li>
+                            <li style="margin-bottom: 10px;"><i class="feather-check-circle" style="color: #2ECC71; margin-right: 8px;"></i> Priority email &amp; WhatsApp support</li>
+                            <li style="margin-bottom: 10px; color: #9ca3af;"><i class="feather-x" style="color: #d1d5db; margin-right: 8px;"></i> Multi-location dashboard</li>
+                            <li style="color: #9ca3af;"><i class="feather-x" style="color: #d1d5db; margin-right: 8px;"></i> API access</li>
+                        @elseif($tierKey === 'pro')
+                            <li style="margin-bottom: 10px;"><i class="feather-check-circle" style="color: #2ECC71; margin-right: 8px;"></i> Everything in Growth</li>
+                            <li style="margin-bottom: 10px;"><i class="feather-check-circle" style="color: #2ECC71; margin-right: 8px;"></i> Multi-location revenue dashboard</li>
+                            <li style="margin-bottom: 10px;"><i class="feather-check-circle" style="color: #2ECC71; margin-right: 8px;"></i> Accountant role</li>
+                            <li style="margin-bottom: 10px;"><i class="feather-check-circle" style="color: #2ECC71; margin-right: 8px;"></i> Advanced analytics &amp; custom reports</li>
+                            <li style="margin-bottom: 10px;"><i class="feather-check-circle" style="color: #2ECC71; margin-right: 8px;"></i> Branded booking page (logo + colors)</li>
+                            <li style="margin-bottom: 10px;"><i class="feather-check-circle" style="color: #2ECC71; margin-right: 8px;"></i> API access</li>
+                            <li style="margin-bottom: 10px;"><i class="feather-check-circle" style="color: #2ECC71; margin-right: 8px;"></i> Dedicated account manager</li>
+                            <li style="color: #2ECC71;"><i class="feather-check-circle" style="color: #2ECC71; margin-right: 8px;"></i> Phone support</li>
+                        @endif
+                    </ul>
 
-                        <ul class="list-unstyled text-start fs-13 mb-4 flex-grow-1">
-                            <li class="mb-2"><i class="feather-check-circle text-success me-2"></i> Booking &amp; check-in/out</li>
-                            <li class="mb-2"><i class="feather-check-circle text-success me-2"></i> Virtual account payments</li>
-                            @if($tierKey !== 'starter')
-                            <li class="mb-2"><i class="feather-check-circle text-success me-2"></i> Housekeeping &amp; room service</li>
-                            <li class="mb-2"><i class="feather-check-circle text-success me-2"></i> SMS notifications</li>
-                            @endif
-                            @if($tierKey === 'pro')
-                            <li class="mb-2"><i class="feather-check-circle text-success me-2"></i> Multi-location dashboard</li>
-                            <li class="mb-2"><i class="feather-check-circle text-success me-2"></i> API access</li>
-                            @endif
-                        </ul>
-
-                        <form action="{{ route('hotel.subscription.checkout.start') }}" method="GET" class="plan-form">
-                            <input type="hidden" name="tier" value="{{ $tierKey }}">
-                            <input type="hidden" name="billing_cycle" class="billing-cycle-input" value="monthly">
-                            <button type="submit" class="btn {{ $highlight ? 'btn-primary' : 'btn-outline-primary' }} w-100">
-                                Choose {{ $labels[$tierKey] }}
-                            </button>
-                        </form>
-                    </div>
+                    <form action="{{ route('hotel.subscription.checkout.start') }}" method="GET" class="plan-form" style="width: 100%;">
+                        <input type="hidden" name="tier" value="{{ $tierKey }}">
+                        <input type="hidden" name="billing_cycle" class="billing-cycle-input" value="monthly">
+                        <button type="submit" style="width: 100%; background: {{ $highlight ? '#2ECC71' : 'white' }}; color: {{ $highlight ? 'white' : '#2ECC71' }}; border: 2px solid #2ECC71; font-weight: 600; padding: 14px 20px; border-radius: 8px; cursor: pointer; font-size: 14px; transition: all 0.3s;">
+                            Choose {{ $labels[$tierKey] }}
+                        </button>
+                    </form>
                 </div>
             </div>
             @endforeach
         </div>
 
         <div class="text-center mt-5">
-            <p class="text-muted fs-13">
+            <p class="text-muted" style="font-size: 12px;">
                 Running multiple locations or need a custom setup?
-                <a href="#" class="auth-link" data-bs-toggle="modal" data-bs-target="#enterpriseModal">Talk to us about Enterprise</a>
+                <a href="#" class="auth-link" data-bs-toggle="modal" data-bs-target="#enterpriseModal" style="color: #2ECC71; font-weight: 600; text-decoration: none;">Talk to us about Enterprise</a>
             </p>
         </div>
 
@@ -138,7 +168,7 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">Send to AfricStay Sales</button>
+                    <button type="submit" class="btn" style="background: #2ECC71; color: white; border: none; font-weight: 600; padding: 10px 20px; border-radius: 6px; cursor: pointer;">Send to AfricStay Sales</button>
                 </div>
             </form>
         </div>
@@ -150,13 +180,17 @@ document.addEventListener('DOMContentLoaded', function () {
     const buttons = document.querySelectorAll('#billingToggle button');
     buttons.forEach(btn => {
         btn.addEventListener('click', () => {
-            buttons.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
+            buttons.forEach(b => {
+                b.style.background = 'white';
+                b.style.color = '#2ECC71';
+            });
+            btn.style.background = '#2ECC71';
+            btn.style.color = 'white';
+            
             const cycle = btn.dataset.cycle;
-
             document.querySelectorAll('.billing-cycle-input').forEach(input => input.value = cycle);
-            document.querySelectorAll('.price-monthly').forEach(el => el.style.display = cycle === 'monthly' ? 'inline' : 'none');
-            document.querySelectorAll('.price-yearly').forEach(el => el.style.display = cycle === 'yearly' ? 'inline' : 'none');
+            document.querySelectorAll('.price-monthly').forEach(el => el.style.display = cycle === 'monthly' ? 'block' : 'none');
+            document.querySelectorAll('.price-yearly').forEach(el => el.style.display = cycle === 'yearly' ? 'block' : 'none');
         });
     });
 });

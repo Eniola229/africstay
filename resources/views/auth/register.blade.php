@@ -11,7 +11,7 @@
         <div class="auth-left-inner">
 
             <div class="auth-panel-logo">
-                <img src="{{ asset('dashboard/assets/images/favicon.png') }}"
+                <img src="{{ asset('ashboard/assets/images/favicon.png') }}"
                      style="height:32px;filter:brightness(0) invert(1);" alt="AfricStay">
                 <span>AfricStay</span>
             </div>
@@ -73,7 +73,7 @@
                     <span>+</span>
                 </div>
                 <div class="auth-trust-text">
-                    <strong>Trusted by hotels across Nigeria</strong>
+                    <strong>Trusted by hotels across Africa</strong>
                     <span>From guesthouses to multi-location lodges</span>
                 </div>
             </div>
@@ -85,7 +85,7 @@
         <div class="auth-form-box">
 
             <a href="{{ route('home') }}">
-                <img src="{{ asset('dashboard/assets/images/favicon.png') }}"
+                <img src="{{ asset('ashboard/assets/images/favicon.png') }}"
                      class="auth-logo-img" alt="AfricStay">
             </a>
 
@@ -103,7 +103,7 @@
                     <input type="text"
                            name="name"
                            value="{{ old('name') }}"
-                           placeholder="Chidi Obi"
+                           placeholder="John Doe"
                            class="form-control @error('name') is-invalid @enderror"
                            required>
                     @error('name')
@@ -135,6 +135,7 @@
                     @error('phone')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
+                    <br>
                     <small class="text-muted fs-12">Used to log in and as your hotel's fallback contact number.</small>
                 </div>
 
@@ -178,8 +179,8 @@
                         <input type="checkbox" name="terms" id="terms" class="form-check-input" required>
                         <label class="form-check-label text-muted fs-13" for="terms">
                             I agree to AfricStay's
-                            <a href="#" class="auth-link">Terms of Service</a> and
-                            <a href="#" class="auth-link">Privacy Policy</a>
+                            <a href="{{ url('terms-of-service') }}" class="auth-link">Terms of Service</a> and
+                            <a href="{{ url('privacy-policy') }}" class="auth-link">Privacy Policy</a>
                         </label>
                     </div>
                 </div>

@@ -12,7 +12,7 @@ class Room extends Model
 
     protected $fillable = [
         'hotel_id', 'room_number', 'name', 'type', 'floor', 'price_per_night',
-        'status', 'description', 'max_guests', 'maintenance_reason', 'maintenance_expected_return',
+        'status', 'description', 'max_guests', 'pricing_unit', 'maintenance_reason', 'maintenance_expected_return',
     ];
 
     protected function casts(): array

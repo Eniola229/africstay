@@ -13,12 +13,12 @@
     <meta property="og:type" content="website" />
     <meta property="og:url" content="{{ url()->current() }}" />
     <meta property="og:site_name" content="AfricStay" />
-    <link rel="shortcut icon" type="image/x-icon" href="{{ asset('dashboard/assets/images/favicon.png') }}" />
-    <link rel="stylesheet" type="text/css" href="{{ asset('dashboard/assets/css/bootstrap.min.css') }}" />
-    <link rel="stylesheet" type="text/css" href="{{ asset('dashboard/assets/vendors/css/vendors.min.css') }}" />
-    <link rel="stylesheet" type="text/css" href="{{ asset('dashboard/assets/css/theme.min.css') }}" />
+    <link rel="shortcut icon" type="image/x-icon" href="{{ asset('ashboard/assets/images/favicon.png') }}" />
+    <link rel="stylesheet" type="text/css" href="{{ asset('ashboard/assets/css/bootstrap.min.css') }}" />
+    <link rel="stylesheet" type="text/css" href="{{ asset('ashboard/assets/vendors/css/vendors.min.css') }}" />
+    <link rel="stylesheet" type="text/css" href="{{ asset('ashboard/assets/css/theme.min.css') }}" />
     {{-- AfricStay green brand override (cloned from the Orderer theme override pattern) --}}
-    <link rel="stylesheet" type="text/css" href="{{ asset('dashboard/assets/css/africstay-theme.css') }}" />
+    <link rel="stylesheet" type="text/css" href="{{ asset('ashboard/assets/css/orderer-theme.css') }}" />
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     @stack('head')
     @stack('styles')
@@ -31,8 +31,8 @@
     @yield('content')
 </div>
 
-<script src="{{ asset('dashboard/assets/vendors/js/vendors.min.js') }}"></script>
-<script src="{{ asset('dashboard/assets/js/common-init.min.js') }}"></script>
+<script src="{{ asset('ashboard/assets/vendors/js/vendors.min.js') }}"></script>
+<script src="{{ asset('ashboard/assets/js/common-init.min.js') }}"></script>
 @stack('scripts')
 </body>
 </html>

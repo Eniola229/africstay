@@ -30,3 +30,5 @@ Schedule::command(ExpireStalePendingBookings::class)
     ->everyThirtyMinutes()
     ->withoutOverlapping()
     ->onOneServer();
+
+Schedule::command('africstay:checkout-due-alerts')->everyMinute()->withoutOverlapping();

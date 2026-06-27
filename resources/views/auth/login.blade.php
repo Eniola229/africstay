@@ -7,7 +7,7 @@
         <div class="auth-left-inner">
 
             <div class="auth-panel-logo">
-                <img src="{{ asset('dashboard/assets/images/favicon.png') }}"
+                <img src="{{ asset('ashboard/assets/images/favicon.png') }}"
                      style="height:32px;filter:brightness(0) invert(1);" alt="AfricStay">
                 <span>AfricStay</span>
             </div>
@@ -59,7 +59,7 @@
                     <span>+</span>
                 </div>
                 <div class="auth-trust-text">
-                    <strong>Trusted by hotels across Nigeria</strong>
+                    <strong>Trusted by hotels across Africa</strong>
                     <span>From guesthouses to multi-location lodges</span>
                 </div>
             </div>
@@ -71,7 +71,7 @@
         <div class="auth-form-box">
 
             <a href="{{ route('home') }}">
-                <img src="{{ asset('dashboard/assets/images/favicon.png') }}"
+                <img src="{{ asset('ashboard/assets/images/favicon.png') }}"
                      class="auth-logo-img" alt="AfricStay">
             </a>
 
@@ -126,13 +126,6 @@
                 <button type="submit" class="btn btn-primary btn-lg w-100 mb-3">
                     <i class="feather-log-in me-2"></i> Sign In
                 </button>
-
-                <div class="auth-divider">or</div>
-
-                <a href="{{ route('platform.login') }}"
-                   class="btn btn-outline-secondary w-100 mt-3">
-                    AfricStay team member? Sign in here
-                </a>
 
             </form>
         </div>

@@ -11,8 +11,8 @@
     @if($hotel->logo)<meta property="og:image" content="{{ $hotel->logo }}">@endif
     <meta property="og:type" content="website">
 
-    <link rel="stylesheet" href="{{ asset('dashboard/assets/css/bootstrap.min.css') }}">
-    <link rel="stylesheet" href="{{ asset('dashboard/assets/css/africstay-theme.css') }}">
+    <link rel="stylesheet" href="{{ asset('ashboard/assets/css/bootstrap.min.css') }}">
+    <link rel="stylesheet" href="{{ asset('ashboard/assets/css/africstay-theme.css') }}">
     @if(in_array($hotel->tier, ['pro','enterprise']) && $hotel->brand_primary_color)
     <style>:root { --bs-primary: {{ $hotel->brand_primary_color }} !important; }
         .btn-primary { background-color: {{ $hotel->brand_primary_color }} !important; border-color: {{ $hotel->brand_primary_color }} !important; }</style>
@@ -170,7 +170,7 @@
     </div>
 </div>
 
-<script src="{{ asset('dashboard/assets/css/bootstrap.min.css') }}"></script>
+<script src="{{ asset('ashboard/assets/css/bootstrap.min.css') }}"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
 <script>
 const availUrl = "{{ route('public.booking.availability', $hotel->slug) }}";

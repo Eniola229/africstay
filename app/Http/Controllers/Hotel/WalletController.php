@@ -84,4 +84,69 @@ class WalletController extends Controller
         return redirect()->route('hotel.wallet.withdrawals')
             ->with('success', "Withdrawal of ₦".number_format($withdrawal->amountNaira(), 2)." is processing.");
     }
+
+    public function listBanks()
+    {
+        $key = config('services.flutterwave.secret_key');
+     
+        if (blank($key)) {
+            // Graceful fallback: return an empty list; the blade retries.
+            return response()->json([]);
+        }
+     
+        $banks = Cache::remember('flw_banks_ng', now()->addHours(6), function () use ($key) {
+            $response = Http::withToken($key)
+                ->get('https://api.flutterwave.com/v3/banks/NG');
+     
+            if ($response->successful() && $response->json('status') === 'success') {
+                return collect($response->json('data'))
+                    ->map(fn ($b) => ['name' => $b['name'], 'code' => $b['code']])
+                    ->sortBy('name')
+                    ->values()
+                    ->all();
+            }
+     
+            return [];
+        });
+     
+        return response()->json($banks);
+    }
+
+    public function verifyAccount(Request $request)
+    {
+        $validated = $request->validate([
+            'account_number' => ['required', 'string', 'size:10'],
+            'bank_code'      => ['required', 'string', 'max:10'],
+        ]);
+     
+        $key = config('services.flutterwave.secret_key');
+     
+        if (blank($key)) {
+            return response()->json(['success' => false, 'message' => 'Payment gateway not configured.']);
+        }
+     
+        try {
+            $response = Http::withToken($key)
+                ->post('https://api.flutterwave.com/v3/accounts/resolve', [
+                    'account_number' => $validated['account_number'],
+                    'account_bank'   => $validated['bank_code'],
+                ]);
+     
+            if ($response->successful() && $response->json('status') === 'success') {
+                return response()->json([
+                    'success'      => true,
+                    'account_name' => $response->json('data.account_name'),
+                ]);
+            }
+     
+            return response()->json([
+                'success' => false,
+                'message' => $response->json('message') ?? 'Account could not be verified.',
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('FLW account verify error: '.$e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Verification service unavailable.']);
+        }
+    }
+
 }

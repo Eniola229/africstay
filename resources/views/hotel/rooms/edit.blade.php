@@ -9,44 +9,81 @@
 @section('content')
 <div class="row">
     <div class="col-lg-7">
+
+        {{-- ── Room details ──────────────────────────────────────────────── --}}
         <div class="card mb-3">
             <div class="card-header"><h5 class="card-title mb-0">Room Details</h5></div>
             <div class="card-body">
                 <form action="{{ route('hotel.rooms.update', $room->id) }}" method="POST">
                     @csrf @method('PUT')
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
                             <label class="form-label fw-bold">Type</label>
                             <select name="type" class="form-select">
                                 @foreach($roomTypes as $type)
-                                <option value="{{ $type }}" {{ $room->type === $type ? 'selected' : '' }}>{{ ucfirst($type) }}</option>
+                                    <option value="{{ $type }}" {{ $room->type === $type ? 'selected' : '' }}>
+                                        {{ ucfirst($type) }}
+                                    </option>
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-6">
                             <label class="form-label fw-bold">Floor</label>
                             <input type="text" name="floor" value="{{ $room->floor }}" class="form-control">
                         </div>
                     </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">Price per night (₦)</label>
-                            <input type="number" name="price_per_night" value="{{ $room->pricePerNightNaira() }}" class="form-control" min="0" required>
+
+                    {{-- ── Pricing ──────────────────────────────────────────── --}}
+                    <div class="row mb-3 align-items-end">
+                        <div class="col-md-5">
+                            <label class="form-label fw-bold">Pricing unit <span class="text-danger">*</span></label>
+                            <select name="pricing_unit" id="pricing_unit_edit" class="form-select"
+                                    onchange="updateEditPriceLabel(this.value)" required>
+                                <option value="night" {{ ($room->pricing_unit ?? 'night') === 'night' ? 'selected' : '' }}>
+                                    Per night (calendar day)
+                                </option>
+                                <option value="hour"  {{ ($room->pricing_unit ?? '') === 'hour'  ? 'selected' : '' }}>
+                                    Per hour
+                                </option>
+                                <option value="day24" {{ ($room->pricing_unit ?? '') === 'day24' ? 'selected' : '' }}>
+                                    Per 24-hour block
+                                </option>
+                            </select>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">Max guests</label>
-                            <input type="number" name="max_guests" value="{{ $room->max_guests }}" class="form-control" min="1" max="20">
+                        <div class="col-md-7">
+                            <label class="form-label fw-bold" id="editPriceLabelMain">
+                                Price per night (₦) <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text">₦</span>
+                                <input type="number" name="price_per_night"
+                                       value="{{ $room->pricePerNightNaira() }}"
+                                       class="form-control" min="0" step="0.01" required>
+                            </div>
+                            <small class="text-muted" id="editPriceHintMain"></small>
                         </div>
                     </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Max guests</label>
+                            <input type="number" name="max_guests" value="{{ $room->max_guests }}"
+                                   class="form-control" min="1" max="20">
+                        </div>
+                    </div>
+
                     <div class="mb-3">
                         <label class="form-label fw-bold">Description</label>
                         <textarea name="description" rows="3" class="form-control">{{ $room->description }}</textarea>
                     </div>
+
                     <button type="submit" class="btn btn-primary">Save Changes</button>
                 </form>
             </div>
         </div>
 
+        {{-- ── Block for Maintenance ─────────────────────────────────────── --}}
         <div class="card">
             <div class="card-header"><h5 class="card-title mb-0">Block for Maintenance</h5></div>
             <div class="card-body">
@@ -55,8 +92,9 @@
                     @csrf
                     <div class="mb-3">
                         <label class="form-label fw-bold">Reason</label>
-                        <input type="text" name="maintenance_reason" class="form-control @error('maintenance_reason') is-invalid @enderror" required>
-                        @error('maintenance_reason') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                        <input type="text" name="maintenance_reason"
+                               class="form-control @error('maintenance_reason') is-invalid @enderror" required>
+                        @error('maintenance_reason')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold">Expected return date</label>
@@ -70,6 +108,7 @@
         </div>
     </div>
 
+    {{-- ── Photos & Video ───────────────────────────────────────────────── --}}
     <div class="col-lg-5">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -90,9 +129,9 @@
                     <div class="col-4">
                         <div class="position-relative">
                             @if($media->type === 'image')
-                            <img src="{{ $media->url }}" style="width:100%;height:80px;object-fit:cover;border-radius:8px;">
+                                <img src="{{ $media->url }}" style="width:100%;height:80px;object-fit:cover;border-radius:8px;">
                             @else
-                            <video src="{{ $media->url }}" style="width:100%;height:80px;object-fit:cover;border-radius:8px;" muted></video>
+                                <video src="{{ $media->url }}" style="width:100%;height:80px;object-fit:cover;border-radius:8px;" muted></video>
                             @endif
                             <form action="{{ route('hotel.rooms.media.destroy', [$room->id, $media->id]) }}" method="POST"
                                   class="position-absolute top-0 end-0 m-1"
@@ -103,7 +142,8 @@
                                 </button>
                             </form>
                             @if($media->is_primary)
-                            <span class="badge bg-success position-absolute bottom-0 start-0 m-1" style="font-size:9px;">Primary</span>
+                                <span class="badge bg-success position-absolute bottom-0 start-0 m-1"
+                                      style="font-size:9px;">Primary</span>
                             @endif
                         </div>
                     </div>
@@ -118,19 +158,44 @@
         </div>
     </div>
 </div>
+@endsection
 
 @push('scripts')
 <script src="https://upload-widget.cloudinary.com/global/all.js" type="text/javascript"></script>
 <script>
-const CLOUD_NAME = "{{ config('services.cloudinary.cloud_name') }}";
+const CLOUD_NAME    = "{{ config('services.cloudinary.cloud_name') }}";
 const UPLOAD_PRESET = "{{ config('services.cloudinary.upload_preset') }}";
 const ADD_MEDIA_URL = "{{ route('hotel.rooms.media.store', $room->id) }}";
-const CSRF_TOKEN = "{{ csrf_token() }}";
+const CSRF_TOKEN    = "{{ csrf_token() }}";
+
+const PRICE_LABELS = {
+    night: 'Price per night (₦)',
+    hour:  'Price per hour (₦)',
+    day24: 'Price per 24-hour block (₦)',
+};
+const PRICE_HINTS = {
+    night: 'Charged once per calendar night.',
+    hour:  'Charged per hour — check-in/out times determine hours billed.',
+    day24: 'Charged per rolling 24-hour block from check-in time.',
+};
+
+function updateEditPriceLabel(unit) {
+    const lbl  = document.getElementById('editPriceLabelMain');
+    const hint = document.getElementById('editPriceHintMain');
+    if (lbl)  lbl.innerHTML  = (PRICE_LABELS[unit] || 'Price (₦)') + ' <span class="text-danger">*</span>';
+    if (hint) hint.textContent = PRICE_HINTS[unit] || '';
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    const sel = document.getElementById('pricing_unit_edit');
+    if (sel) updateEditPriceLabel(sel.value);
+});
 
 function openMediaWidget(mediaType) {
     cloudinary.openUploadWidget({
-        cloudName: CLOUD_NAME, uploadPreset: UPLOAD_PRESET, sources: ['local', 'camera'],
-        multiple: true, resourceType: mediaType, maxFiles: mediaType === 'video' ? 2 : 8,
+        cloudName: CLOUD_NAME, uploadPreset: UPLOAD_PRESET,
+        sources: ['local','camera'], multiple: true,
+        resourceType: mediaType, maxFiles: mediaType === 'video' ? 2 : 8,
     }, (error, result) => {
         if (!error && result.event === 'success') {
             const info = result.info;
@@ -144,4 +209,3 @@ function openMediaWidget(mediaType) {
 }
 </script>
 @endpush
-@endsection

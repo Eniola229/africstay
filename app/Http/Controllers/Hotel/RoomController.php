@@ -34,6 +34,11 @@ class RoomController extends Controller
         return view('hotel.rooms.create', [
             'hotel' => $this->hotel(),
             'roomTypes' => ['standard', 'deluxe', 'suite', 'family'],
+            'pricingUnits' => [
+                'night' => 'Per night (calendar day)',
+                'hour' => 'Per hour',
+                'day24' => 'Per 24-hour block',
+            ],
         ]);
     }
 
@@ -50,6 +55,7 @@ class RoomController extends Controller
             'price_per_night' => ['required', 'numeric', 'min:0'],
             'max_guests' => ['required', 'integer', 'min:1', 'max:20'],
             'description' => ['nullable', 'string', 'max:1000'],
+            'pricing_unit' => ['required', 'in:night,hour,day24'],
             'images' => ['nullable', 'array'],
             'images.*.url' => ['required_with:images', 'url'],
             'images.*.public_id' => ['nullable', 'string'],
@@ -72,6 +78,7 @@ class RoomController extends Controller
             'price_per_night' => (int) round($validated['price_per_night'] * 100),
             'max_guests' => $validated['max_guests'],
             'description' => $validated['description'] ?? null,
+            'pricing_unit' => $validated['pricing_unit'],
             'status' => 'available',
         ]);
 
@@ -92,6 +99,11 @@ class RoomController extends Controller
         return view('hotel.rooms.edit', [
             'room' => $room->load('media'),
             'roomTypes' => ['standard', 'deluxe', 'suite', 'family'],
+            'pricingUnits' => [
+                'night' => 'Per night (calendar day)',
+                'hour' => 'Per hour',
+                'day24' => 'Per 24-hour block',
+            ],
         ]);
     }
 
@@ -107,9 +119,10 @@ class RoomController extends Controller
             'price_per_night' => ['required', 'numeric', 'min:0'],
             'max_guests' => ['required', 'integer', 'min:1', 'max:20'],
             'description' => ['nullable', 'string', 'max:1000'],
+            'pricing_unit' => ['required', 'in:night,hour,day24'],
         ]);
 
-        $old = $room->only(['price_per_night', 'type', 'max_guests']);
+        $old = $room->only(['price_per_night', 'type', 'max_guests', 'pricing_unit']);
 
         $room->update([
             ...$validated,
@@ -117,7 +130,7 @@ class RoomController extends Controller
         ]);
 
         ActivityLog::record($room->hotel_id, Auth::user(), 'UPDATE_ROOM', 'room', 'Room', $room->id,
-            "Room {$room->room_number}", "Updated Room {$room->room_number}.", $old, $room->only(['price_per_night', 'type', 'max_guests']));
+            "Room {$room->room_number}", "Updated Room {$room->room_number}.", $old, $room->only(['price_per_night', 'type', 'max_guests', 'pricing_unit']));
 
         return back()->with('success', 'Room updated.');
     }

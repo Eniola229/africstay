@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Webhooks;
 use App\Http\Controllers\Controller;
 use App\Services\GuestPaymentConfirmationService;
 use App\Services\SubscriptionBillingService;
-use Illuminate\Http\Request;
+use Illuminate\Http\Request; 
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Str;
@@ -28,9 +28,13 @@ class FlutterwaveWebhookController extends Controller
         }
 
         $payload = $request->all();
-        $status = $payload['data']['status'] ?? null;
-        $reference = $payload['data']['tx_ref'] ?? null;
-        $providerRef = (string) ($payload['data']['id'] ?? '');
+
+        // Flutterwave sends different structures depending on payment type:
+        // - Card/standard payments: { data: { status, tx_ref, id } }
+        // - Bank transfer events:   { status, txRef, id } (flat, camelCase)
+        $status    = $payload['data']['status'] ?? $payload['status'] ?? null;
+        $reference = $payload['data']['tx_ref'] ?? $payload['txRef']  ?? null;
+        $providerRef = (string) ($payload['data']['id'] ?? $payload['id'] ?? '');
 
         if ($status === 'successful' && $reference) {
             $this->route($reference, $providerRef);

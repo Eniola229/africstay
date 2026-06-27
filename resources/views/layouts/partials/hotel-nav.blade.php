@@ -2,11 +2,11 @@
     <div class="navbar-wrapper">
         <div class="m-header">
             <a href="{{ route('hotel.dashboard') }}" class="b-brand">
-                <img src="{{ asset('dashboard/assets/images/favicon.png') }}"
+                <img src="{{ asset('ashboard/assets/images/favicon.png') }}"
                      alt="AfricStay"
                      class="logo logo-lg"
                      style="width:140px;height:auto;display:block;margin:0 auto;" />
-                <img src="{{ asset('dashboard/assets/images/favicon.png') }}"
+                <img src="{{ asset('ashboard/assets/images/favicon.png') }}"
                      alt="" class="logo logo-sm" />
             </a>
         </div>
