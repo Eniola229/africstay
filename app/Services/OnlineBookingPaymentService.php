@@ -5,111 +5,156 @@ namespace App\Services;
 use App\Models\Booking;
 use App\Models\Payment;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
-/**
- * Initiates the guest-facing deposit checkout for an ONLINE booking
- * (distinct from VirtualAccountService, which is for the in-person
- * check-in payment account). This is a hosted Flutterwave/Paystack
- * checkout page the guest pays on directly — same provider-fallback rule,
- * same AFS-PAY- reference prefix so the existing webhook routing in
- * FlutterwaveWebhookController / PaystackWebhookController picks it up
- * with zero changes there.
- */
 class OnlineBookingPaymentService
 {
-    public function initiateDepositCheckout(Booking $booking, int $depositAmountKobo): array
-    {
-        $reference = 'AFS-PAY-'.now()->format('Ymd').'-'.Str::upper(Str::random(6));
-        $guest = $booking->guest;
-        $hotel = $booking->hotel;
+    protected string $flutterwaveSecretKey;
+    protected string $flutterwavePublicKey;
+    protected string $paystackSecretKey;
+    protected string $paystackPublicKey;
 
-        $payment = Payment::create([
+    public function __construct()
+    {
+        $this->flutterwaveSecretKey = config('services.flutterwave.secret_key');
+        $this->flutterwavePublicKey = config('services.flutterwave.public_key');
+        $this->paystackSecretKey = config('services.paystack.secret_key');
+        $this->paystackPublicKey = config('services.paystack.public_key');
+    }
+
+    /**
+     * Initiate full payment checkout - Flutterwave first, Paystack as fallback
+     */
+    public function initiateFullPaymentCheckout(Booking $booking, int $amountInKobo): array
+    {
+        try {
+            return $this->initiateFlutterwavePayment($booking, $amountInKobo);
+        } catch (\Exception $e) {
+            \Log::warning('Flutterwave failed, switching to Paystack.', [
+                'error' => $e->getMessage(),
+                'booking' => $booking->id
+            ]);
+
+            return $this->initiatePaystackPayment($booking, $amountInKobo);
+        }
+    }
+
+    /**
+     * Initiate Flutterwave payment
+     */
+    protected function initiateFlutterwavePayment(Booking $booking, int $amountInKobo): array
+    {
+        $paymentReference = 'AFS-PAY-' . Str::upper(Str::random(10));
+
+        Payment::create([
             'booking_id' => $booking->id,
-            'hotel_id' => $hotel->id,
-            'amount' => $depositAmountKobo,
+            'hotel_id' => $booking->hotel_id,
+            'amount' => $amountInKobo,
+            'amount_paid' => 0,
             'payment_method' => 'card',
-            'provider' => 'flutterwave',
-            'payment_reference' => $reference,
+            'payment_reference' => $paymentReference,
+            'type' => 'full_payment',
             'status' => 'pending',
+            'expires_at' => now()->addHours(2),
         ]);
 
-        $checkoutUrl = $this->tryFlutterwave($booking, $payment, $depositAmountKobo, $reference);
+        $callbackUrl = route('public.booking.callback', [
+            'slug' => $booking->hotel->slug,
+            'reference' => $paymentReference
+        ]);
 
-        if (! $checkoutUrl) {
-            $payment->update(['provider' => 'paystack']);
-            $checkoutUrl = $this->tryPaystack($booking, $payment, $depositAmountKobo, $reference);
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . $this->flutterwaveSecretKey,
+            'Content-Type' => 'application/json',
+        ])->post('https://api.flutterwave.com/v3/payments', [
+            'tx_ref' => $paymentReference,
+            'amount' => $amountInKobo / 100,
+            'currency' => 'NGN',
+            'redirect_url' => $callbackUrl,
+            'payment_options' => 'card, banktransfer, ussd',
+            'customer' => [
+                'email' => $booking->guest->email ?? $booking->hotel->email,
+                'name' => $booking->guest->name,
+            ],
+            'customizations' => [
+                'title' => $booking->hotel->name . ' - Booking Payment',
+                'description' => 'Booking Reference: ' . $booking->booking_reference,
+            ],
+            'meta' => [
+                'booking_reference' => $booking->booking_reference,
+                'hotel_id' => $booking->hotel_id,
+                'payment_type' => 'full_payment',
+            ],
+        ]);
+
+        if (!$response->successful()) {
+            throw new \Exception('Flutterwave: ' . $response->json('message'));
         }
 
-        if (! $checkoutUrl) {
-            $payment->update(['status' => 'failed']);
-            throw new \RuntimeException('Could not start payment with either provider. Please try again shortly.');
-        }
+        $data = $response->json('data');
 
-        return ['checkout_url' => $checkoutUrl, 'payment' => $payment];
+        return [
+            'checkout_url' => $data['link'],
+            'payment_reference' => $paymentReference,
+        ];
     }
 
-    protected function tryFlutterwave(Booking $booking, Payment $payment, int $amountKobo, string $reference): ?string
+    /**
+     * Initiate Paystack payment (fallback)
+     */
+    protected function initiatePaystackPayment(Booking $booking, int $amountInKobo): array
     {
-        $key = config('services.flutterwave.secret_key');
-        if (blank($key)) {
-            return null;
+        $paymentReference = 'AFS-PAY-' . Str::upper(Str::random(10));
+
+        Payment::create([
+            'booking_id' => $booking->id,
+            'hotel_id' => $booking->hotel_id,
+            'amount' => $amountInKobo,
+            'amount_paid' => 0,
+            'payment_method' => 'card',
+            'payment_reference' => $paymentReference,
+            'type' => 'full_payment',
+            'status' => 'pending',
+            'expires_at' => now()->addHours(2),
+        ]);
+
+        $callbackUrl = route('public.booking.callback', [
+            'slug' => $booking->hotel->slug,
+            'reference' => $paymentReference
+        ]);
+
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . $this->paystackSecretKey,
+            'Content-Type' => 'application/json',
+        ])->post('https://api.paystack.co/transaction/initialize', [
+            'email' => $booking->guest->email ?? $booking->hotel->email,
+            'amount' => $amountInKobo,
+            'reference' => $paymentReference,
+            'callback_url' => $callbackUrl,
+            'metadata' => [
+                'booking_reference' => $booking->booking_reference,
+                'hotel_id' => $booking->hotel_id,
+                'payment_type' => 'full_payment',
+            ],
+        ]);
+
+        if (!$response->successful()) {
+            throw new \Exception('Paystack: ' . $response->json('message'));
         }
 
-        try {
-            $response = Http::withToken($key)->post('https://api.flutterwave.com/v3/payments', [
-                'tx_ref' => $reference,
-                'amount' => $amountKobo / 100,
-                'currency' => 'NGN',
-                'redirect_url' => route('public.booking.callback', $booking->hotel->slug),
-                'customer' => [
-                    'email' => $booking->guest->email ?? $booking->hotel->email ?? 'guest@africstayhms.com',
-                    'phonenumber' => $booking->guest->phone ?? $booking->hotel->phone,
-                    'name' => $booking->guest->name,
-                ],
-                'customizations' => [
-                    'title' => $booking->hotel->name.' — Booking Deposit',
-                    'description' => "Deposit for booking {$booking->booking_reference}",
-                ],
-            ]);
+        $data = $response->json('data');
 
-            if ($response->successful() && $response->json('status') === 'success') {
-                return $response->json('data.link');
-            }
-
-            Log::warning('Flutterwave deposit checkout init failed — falling back to Paystack.', ['booking' => $booking->id]);
-            return null;
-        } catch (\Throwable $e) {
-            Log::error('Flutterwave deposit init exception: '.$e->getMessage());
-            return null;
-        }
+        return [
+            'checkout_url' => $data['authorization_url'],
+            'payment_reference' => $paymentReference,
+        ];
     }
 
-    protected function tryPaystack(Booking $booking, Payment $payment, int $amountKobo, string $reference): ?string
+    /**
+     * Initiate deposit checkout (kept for backward compatibility if needed)
+     */
+    public function initiateDepositCheckout(Booking $booking, int $amountInKobo): array
     {
-        $key = config('services.paystack.secret_key');
-        if (blank($key)) {
-            return null;
-        }
-
-        try {
-            $response = Http::withToken($key)->post('https://api.paystack.co/transaction/initialize', [
-                'email' => $booking->guest->email ?? $booking->hotel->email ?? 'guest@africstayhms.com',
-                'amount' => $amountKobo,
-                'reference' => $reference,
-                'callback_url' => route('public.booking.callback', $booking->hotel->slug),
-            ]);
-
-            if ($response->successful() && $response->json('status') === true) {
-                return $response->json('data.authorization_url');
-            }
-
-            Log::error('Paystack deposit checkout init also failed.', ['booking' => $booking->id]);
-            return null;
-        } catch (\Throwable $e) {
-            Log::error('Paystack deposit init exception: '.$e->getMessage());
-            return null;
-        }
+        return $this->initiateFullPaymentCheckout($booking, $amountInKobo);
     }
 }

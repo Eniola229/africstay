@@ -9,10 +9,19 @@
 @section('content')
 @php
     $badge = match($booking->status) {
-        'pending' => 'bg-secondary', 'confirmed' => 'bg-info text-white', 'checked_in' => 'bg-success',
-        'checked_out' => 'bg-dark', 'cancelled' => 'bg-danger', default => 'bg-secondary',
+        'pending' => 'bg-secondary', 
+        'confirmed' => 'bg-info text-white', 
+        'checked_in' => 'bg-success',
+        'checked_out' => 'bg-dark', 
+        'cancelled' => 'bg-danger', 
+        default => 'bg-secondary',
     };
     $latestPayment = $booking->payments->sortByDesc('created_at')->first();
+    $isPendingPayment = $booking->status === 'checked_in' && $booking->balance > 0;
+    
+    // Check if this is an online booking (full payment) vs virtual account booking
+    $isOnlineBooking = $booking->booking_source === 'online' && $latestPayment && $latestPayment->type === 'full_payment';
+    $hasVirtualAccount = $latestPayment && $latestPayment->virtual_account_number;
 @endphp
 
 <div class="row">
@@ -20,7 +29,18 @@
         <div class="card mb-3">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="card-title mb-0">Booking Details</h5>
-                <span class="badge {{ $badge }} text-capitalize">{{ str_replace('_',' ',$booking->status) }}</span>
+                <div>
+                    @if($isPendingPayment)
+                        <span class="badge bg-warning text-dark me-1" id="paymentStatusBadge">
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                            Awaiting Payment
+                        </span>
+                    @endif
+                    <span class="badge {{ $badge }} text-capitalize">{{ str_replace('_',' ',$booking->status) }}</span>
+                    @if($isOnlineBooking)
+                        <span class="badge bg-primary ms-1">Online Booking</span>
+                    @endif
+                </div>
             </div>
             <div class="card-body">
                 <div class="row mb-2"><div class="col-4 text-muted">Guest</div><div class="col-8 fw-semibold">{{ $booking->guest->name }}</div></div>
@@ -30,40 +50,14 @@
                 @if($booking->notes)
                 <div class="row mb-2"><div class="col-4 text-muted">Notes</div><div class="col-8">{{ $booking->notes }}</div></div>
                 @endif
+                @if($isOnlineBooking)
+                <div class="row mb-2">
+                    <div class="col-4 text-muted">Booking Type</div>
+                    <div class="col-8"><span class="badge bg-primary">Online Booking (Full Payment)</span></div>
+                </div>
+                @endif
             </div>
         </div>
-
-        @if($booking->status === 'confirmed')
-        <div class="card mb-3">
-            <div class="card-header"><h5 class="card-title mb-0">Check In</h5></div>
-            <div class="card-body">
-                <form action="{{ route('hotel.bookings.check-in', $booking->id) }}" method="POST">
-                    @csrf
-                    <div class="row">
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label fw-bold">ID type</label>
-                            <select name="id_type" class="form-select">
-                                <option value="nin">NIN</option>
-                                <option value="passport">Passport</option>
-                                <option value="drivers_license">Driver's License</option>
-                                <option value="other">Other</option>
-                            </select>
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label fw-bold">ID number</label>
-                            <input type="text" name="id_number" class="form-control @error('id_number') is-invalid @enderror" required>
-                            @error('id_number') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                        </div>
-                        <div class="col-md-4 mb-3 d-flex align-items-end">
-                            <button type="submit" class="btn btn-success w-100">
-                                <i class="feather-log-in me-1"></i> Confirm Check-In
-                            </button>
-                        </div>
-                    </div>
-                </form>
-            </div>
-        </div>
-        @endif
 
         @if($booking->status === 'checked_in')
         <div class="card mb-3">
@@ -155,26 +149,84 @@
         </div>
         @endif
 
-        @if($booking->status === 'checked_out')
-        <div class="card mb-3 border-success">
-            <div class="card-header bg-success text-white"><h5 class="card-title mb-0">Receipt</h5></div>
+        <div class="card mb-3 border-{{ $booking->status === 'checked_out' ? 'success' : 'secondary' }}">
+            <div class="card-header {{ $booking->status === 'checked_out' ? 'bg-success text-white' : 'bg-light' }}">
+                <h5 class="card-title mb-0">
+                    <i class="feather-file-text me-1"></i> 
+                    Receipt
+                    @if($booking->status !== 'checked_out')
+                        <span class="badge bg-secondary text-capitalize ms-2">{{ str_replace('_',' ',$booking->status) }}</span>
+                    @endif
+                </h5>
+            </div>
             <div class="card-body">
-                <p class="mb-1"><strong>{{ $booking->hotel->name }}</strong> · {{ $booking->hotel->phone }}</p>
-                <p class="mb-1">Booking ref: <strong>{{ $booking->booking_reference }}</strong></p>
-                <p class="mb-1">Guest: {{ $booking->guest->name }} · Room {{ $booking->room->room_number }}</p>
-                <p class="mb-1">{{ $booking->check_in->format('d M Y') }} – {{ $booking->check_out->format('d M Y') }}</p>
+                <div class="text-center mb-3">
+                    <strong style="font-size:18px;">{{ $booking->hotel->name }}</strong>
+                    <p class="text-muted mb-0" style="font-size:13px;">{{ $booking->hotel->address ?? '' }} {{ $booking->hotel->phone ? '· '.$booking->hotel->phone : '' }}</p>
+                </div>
                 <hr>
-                <p class="mb-1">Total: ₦{{ number_format($booking->totalAmountNaira(), 2) }}</p>
-                <p class="mb-1">Paid: ₦{{ number_format($booking->amountPaidNaira(), 2) }}</p>
-                <p class="mb-0 fw-bold">Balance: ₦{{ number_format($booking->balanceNaira(), 2) }}</p>
+                <div class="row mb-1">
+                    <div class="col-6 text-muted">Booking reference</div>
+                    <div class="col-6 text-end fw-semibold">{{ $booking->booking_reference }}</div>
+                </div>
+                <div class="row mb-1">
+                    <div class="col-6 text-muted">Guest</div>
+                    <div class="col-6 text-end">{{ $booking->guest->name }}</div>
+                </div>
+                <div class="row mb-1">
+                    <div class="col-6 text-muted">Room</div>
+                    <div class="col-6 text-end">Room {{ $booking->room->room_number }}</div>
+                </div>
+                <div class="row mb-1">
+                    <div class="col-6 text-muted">Check-in</div>
+                    <div class="col-6 text-end">{{ $booking->check_in->format('d M Y H:i') }}</div>
+                </div>
+                <div class="row mb-1">
+                    <div class="col-6 text-muted">Check-out</div>
+                    <div class="col-6 text-end">{{ $booking->check_out->format('d M Y H:i') }}</div>
+                </div>
+                <div class="row mb-1">
+                    <div class="col-6 text-muted">Duration</div>
+                    <div class="col-6 text-end">{{ $booking->nights }} {{ $booking->pricing_unit ?? 'night' }}(s)</div>
+                </div>
+                <hr>
+                <div class="row mb-1">
+                    <div class="col-6 text-muted">Total amount</div>
+                    <div class="col-6 text-end fw-bold">₦{{ number_format($booking->totalAmountNaira(), 2) }}</div>
+                </div>
+                <div class="row mb-1">
+                    <div class="col-6 text-muted">Amount paid</div>
+                    <div class="col-6 text-end text-success fw-bold">₦{{ number_format($booking->amountPaidNaira(), 2) }}</div>
+                </div>
+                <div class="row">
+                    <div class="col-6 text-muted">Balance</div>
+                    <div class="col-6 text-end fw-bold {{ $booking->balance > 0 ? 'text-danger' : 'text-success' }}">
+                        ₦{{ number_format($booking->balanceNaira(), 2) }}
+                        @if($booking->balance <= 0)
+                            <span class="badge bg-success ms-1">Paid ✓</span>
+                        @endif
+                    </div>
+                </div>
+                
+                @if($isOnlineBooking)
+                <div class="alert alert-info mt-3 mb-0">
+                    <i class="feather-credit-card me-1"></i> This booking was paid online in full.
+                </div>
+                @endif
+                
+                @if($booking->status === 'checked_out')
+                <div class="alert alert-success mt-3 mb-0">
+                    <i class="feather-check-circle me-1"></i> Checked out on {{ $booking->checked_out_at ? $booking->checked_out_at->format('d M Y H:i') : 'N/A' }}
+                </div>
+                @endif
+                
                 <button onclick="window.print()" class="btn btn-sm btn-outline-dark mt-3">
                     <i class="feather-printer me-1"></i> Print Receipt
                 </button>
             </div>
         </div>
-        @endif
 
-        @if($booking->status !== 'cancelled' && $booking->status !== 'checked_out')
+        @if($booking->status !== 'cancelled' && $booking->status !== 'checked_out' && $booking->status !== 'checked_in')
         <form action="{{ route('hotel.bookings.cancel', $booking->id) }}" method="POST"
               onsubmit="return confirm('Cancel booking {{ $booking->booking_reference }}?');">
             @csrf
@@ -187,34 +239,159 @@
         <div class="card mb-3">
             <div class="card-header"><h5 class="card-title mb-0">Payment Summary</h5></div>
             <div class="card-body">
-                <div class="d-flex justify-content-between mb-2"><span class="text-muted">Total</span><span class="fw-bold">₦{{ number_format($booking->totalAmountNaira(), 2) }}</span></div>
-                <div class="d-flex justify-content-between mb-2"><span class="text-muted">Paid</span><span class="fw-bold text-success">₦{{ number_format($booking->amountPaidNaira(), 2) }}</span></div>
+                <div class="d-flex justify-content-between mb-2"><span class="text-muted">Total</span><span class="fw-bold" id="totalAmount">₦{{ number_format($booking->totalAmountNaira(), 2) }}</span></div>
+                <div class="d-flex justify-content-between mb-2"><span class="text-muted">Paid</span><span class="fw-bold text-success" id="paidAmount">₦{{ number_format($booking->amountPaidNaira(), 2) }}</span></div>
                 <hr>
-                <div class="d-flex justify-content-between"><span class="fw-bold">Balance</span><span class="fw-bold {{ $booking->balance > 0 ? 'text-danger' : 'text-success' }}">₦{{ number_format($booking->balanceNaira(), 2) }}</span></div>
+                <div class="d-flex justify-content-between"><span class="fw-bold">Balance</span><span class="fw-bold {{ $booking->balance > 0 ? 'text-danger' : 'text-success' }}" id="balanceAmount">₦{{ number_format($booking->balanceNaira(), 2) }}</span></div>
+                @if($isOnlineBooking)
+                <div class="mt-2 text-center">
+                    <span class="badge bg-primary">Paid Online</span>
+                </div>
+                @endif
             </div>
         </div>
 
+        {{-- Show Virtual Account if it exists, otherwise show Online Booking info --}}
         @if($latestPayment)
-        <div class="card">
-            <div class="card-header"><h5 class="card-title mb-0">Payment Account</h5></div>
-            <div class="card-body">
-                <p class="text-muted fs-13 mb-1">Show or read this out to the guest:</p>
-                <div class="p-3 rounded mb-2" style="background:#f8f9fa;">
-                    <div class="fs-12 text-muted">Account Number</div>
-                    <div class="fw-bold fs-5">{{ $latestPayment->virtual_account_number }}</div>
-                    <div class="fs-12 text-muted mt-2">Bank</div>
-                    <div class="fw-semibold">{{ $latestPayment->virtual_account_bank }}</div>
-                    <div class="fs-12 text-muted mt-2">Account Name</div>
-                    <div class="fw-semibold">{{ $latestPayment->virtual_account_name }}</div>
-                    <div class="fs-12 text-muted mt-2">Amount Due</div>
-                    <div class="fw-bold">₦{{ number_format($latestPayment->amountNaira(), 2) }}</div>
+            @if($hasVirtualAccount)
+            <div class="card" id="paymentAccountCard">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">Payment Account</h5>
+                    @if($latestPayment->status !== 'confirmed')
+                        <span class="badge bg-warning text-dark" id="paymentStatusBadgeCard">
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                            Pending
+                        </span>
+                    @else
+                        <span class="badge bg-success" id="paymentStatusBadgeCard">
+                            <i class="feather-check me-1"></i> Paid
+                        </span>
+                    @endif
                 </div>
-                <span class="badge {{ $latestPayment->status === 'confirmed' ? 'bg-success' : 'bg-warning text-dark' }}">
-                    {{ ucfirst($latestPayment->status) }}
-                </span>
+                <div class="card-body">
+                    <p class="text-muted fs-13 mb-1">Show or read this out to the guest:</p>
+                    <div class="p-3 rounded mb-2" style="background:#f8f9fa;">
+                        <div class="fs-12 text-muted">Account Number</div>
+                        <div class="fw-bold fs-5" id="accountNumber">{{ $latestPayment->virtual_account_number }}</div>
+                        <div class="fs-12 text-muted mt-2">Bank</div>
+                        <div class="fw-semibold" id="accountBank">{{ $latestPayment->virtual_account_bank }}</div>
+                        <div class="fs-12 text-muted mt-2">Account Name</div>
+                        <div class="fw-semibold" id="accountName">{{ $latestPayment->virtual_account_name }}</div>
+                        <div class="fs-12 text-muted mt-2">Amount Due</div>
+                        <div class="fw-bold" id="amountDue">₦{{ number_format($latestPayment->amountNaira(), 2) }}</div>
+                    </div>
+                    <span class="badge {{ $latestPayment->status === 'confirmed' ? 'bg-success' : 'bg-warning text-dark' }}" id="paymentStatusBadgeBottom">
+                        {{ ucfirst($latestPayment->status) }}
+                    </span>
+                </div>
             </div>
+            @elseif($isOnlineBooking)
+            <div class="card" id="onlineBookingCard">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="feather-credit-card me-1"></i> Online Booking
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="text-center mb-2">
+                        <i class="feather-check-circle" style="font-size:48px;color:#0a3622;"></i>
+                    </div>
+                    <p class="text-muted fs-13 text-center">This booking was made online and paid in full.</p>
+                    <div class="p-3 rounded" style="background:#f0f5f0;">
+                        <div class="row mb-1">
+                            <div class="col-6 text-muted">Payment Reference</div>
+                            <div class="col-6 text-end fw-semibold">{{ $latestPayment->payment_reference }}</div>
+                        </div>
+                        <div class="row mb-1">
+                            <div class="col-6 text-muted">Amount Paid</div>
+                            <div class="col-6 text-end fw-bold text-success">₦{{ number_format($latestPayment->amountNaira(), 2) }}</div>
+                        </div>
+                        <div class="row">
+                            <div class="col-6 text-muted">Status</div>
+                            <div class="col-6 text-end">
+                                <span class="badge {{ $latestPayment->status === 'confirmed' ? 'bg-success' : 'bg-warning text-dark' }}">
+                                    {{ ucfirst($latestPayment->status) }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            @endif
+        @endif
+
+        @if($isPendingPayment)
+        <div class="mt-3 text-center">
+            <small class="text-muted" id="lastCheckText">Checking for payment...</small>
         </div>
         @endif
     </div>
 </div>
+
+@if($isPendingPayment)
+@push('scripts')
+<script>
+(function() {
+    let checkCount = 0;
+    const maxChecks = 60;
+    const bookingId = '{{ $booking->id }}';
+    const paymentId = '{{ $latestPayment->id ?? null }}';
+
+    function checkPaymentStatus() {
+        checkCount++;
+        
+        fetch('{{ route("hotel.bookings.check-payment", $booking->id) }}', {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            const lastCheck = document.getElementById('lastCheckText');
+            if (lastCheck) {
+                const now = new Date();
+                lastCheck.textContent = 'Last checked: ' + now.toLocaleTimeString();
+            }
+
+            if (data.payment_confirmed) {
+                window.location.reload();
+                return;
+            }
+
+            if (data.payment_status === 'confirmed') {
+                window.location.reload();
+                return;
+            }
+
+            const statusBadge = document.getElementById('paymentStatusBadge');
+            const statusBadgeCard = document.getElementById('paymentStatusBadgeCard');
+            const statusBadgeBottom = document.getElementById('paymentStatusBadgeBottom');
+            
+            if (statusBadge) {
+                statusBadge.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span> Awaiting Payment';
+            }
+
+            if (checkCount < maxChecks) {
+                setTimeout(checkPaymentStatus, 5000);
+            } else {
+                if (lastCheck) {
+                    lastCheck.textContent = '⏰ Still waiting for payment. The guest can pay via the account above.';
+                    lastCheck.className = 'text-warning';
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error checking payment:', error);
+            if (checkCount < maxChecks) {
+                setTimeout(checkPaymentStatus, 10000);
+            }
+        });
+    }
+
+    setTimeout(checkPaymentStatus, 3000);
+})();
+</script>
+@endpush
+@endif
 @endsection

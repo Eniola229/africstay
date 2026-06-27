@@ -53,6 +53,9 @@ Route::prefix('hotel/{slug}')->name('public.')->group(function () {
     Route::post('/book', [HotelPublicController::class, 'store'])->name('booking.store')->middleware('throttle:10,1');
     Route::get('/booking/callback', [HotelPublicController::class, 'callback'])->name('booking.callback');
     Route::get('/booking/{reference}', [HotelPublicController::class, 'confirmation'])->name('booking.confirmation');
+    Route::get('/booking/{reference}/check-status', [HotelPublicController::class, 'checkPaymentStatus'])
+    ->name('booking.check-status');
+    
 });
 
 Route::post('/enterprise-inquiry', [EnterpriseInquiryController::class, 'store'])
@@ -155,6 +158,7 @@ Route::middleware(['auth:web', 'subscription.active', 'onboarding.complete', 'im
         Route::post('/{booking}/check-in', [BookingController::class, 'checkIn'])->name('check-in');
         Route::post('/{booking}/check-out', [BookingController::class, 'checkOut'])->name('check-out');
         Route::post('/{booking}/cancel', [BookingController::class, 'cancel'])->name('cancel');
+        Route::get('{booking}/check-payment', [BookingController::class, 'checkPayment'])->name('check-payment');
     });
 
     Route::prefix('wallet')->name('hotel.wallet.')->group(function () {

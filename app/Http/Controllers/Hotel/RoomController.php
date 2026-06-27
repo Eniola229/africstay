@@ -46,48 +46,68 @@ class RoomController extends Controller
     {
         $this->authorizeManage();
         $hotel = $this->hotel();
-
+     
+        // ── Scrub blank slots out of images/videos before validation ─────────────
+        // This mirrors OnboardingController::saveRooms() and prevents the
+        // "images.N.url is required when images is present" error.
+        $request->merge([
+            'images' => collect($request->input('images', []))
+                ->filter(fn ($img) => ! blank($img['url'] ?? null))
+                ->values()
+                ->all(),
+            'videos' => collect($request->input('videos', []))
+                ->filter(fn ($vid) => ! blank($vid['url'] ?? null))
+                ->values()
+                ->all(),
+        ]);
+     
         $validated = $request->validate([
-            'room_number' => ['required', 'string', 'max:20', 'unique:rooms,room_number,NULL,id,hotel_id,'.$hotel->id],
-            'name' => ['nullable', 'string', 'max:100'],
-            'type' => ['required', 'in:standard,deluxe,suite,family'],
-            'floor' => ['nullable', 'string', 'max:20'],
-            'price_per_night' => ['required', 'numeric', 'min:0'],
-            'max_guests' => ['required', 'integer', 'min:1', 'max:20'],
-            'description' => ['nullable', 'string', 'max:1000'],
-            'pricing_unit' => ['required', 'in:night,hour,day24'],
-            'images' => ['nullable', 'array'],
-            'images.*.url' => ['required_with:images', 'url'],
+            'room_number'        => ['required', 'string', 'max:20',
+                                     'unique:rooms,room_number,NULL,id,hotel_id,'.$hotel->id],
+            'name'               => ['nullable', 'string', 'max:100'],
+            'type'               => ['required', 'in:standard,deluxe,suite,family'],
+            'floor'              => ['nullable', 'string', 'max:20'],
+            'price_per_night'    => ['required', 'numeric', 'min:0'],
+            'max_guests'         => ['required', 'integer', 'min:1', 'max:20'],
+            'description'        => ['nullable', 'string', 'max:1000'],
+            'pricing_unit'       => ['required', 'in:night,hour,day24'],
+            'images'             => ['nullable', 'array'],
+            'images.*.url'       => ['required', 'url'],          // no required_with — blank slots already removed
             'images.*.public_id' => ['nullable', 'string'],
-            'videos' => ['nullable', 'array'],
-            'videos.*.url' => ['required_with:videos', 'url'],
+            'videos'             => ['nullable', 'array'],
+            'videos.*.url'       => ['required', 'url'],
             'videos.*.public_id' => ['nullable', 'string'],
         ]);
-
+     
         $limit = Hotel::TIER_ROOM_LIMITS[$hotel->tier];
         if ($limit !== null && $hotel->rooms()->count() >= $limit) {
-            return back()->withErrors(['room_number' => "Your {$hotel->tier} tier allows up to {$limit} rooms. Upgrade to add more."]);
+            return back()->withErrors([
+                'room_number' => "Your {$hotel->tier} tier allows up to {$limit} rooms. Upgrade to add more.",
+            ]);
         }
-
+     
         $room = Room::create([
-            'hotel_id' => $hotel->id,
-            'room_number' => $validated['room_number'],
-            'name' => $validated['name'] ?? null,
-            'type' => $validated['type'],
-            'floor' => $validated['floor'] ?? null,
-            'price_per_night' => (int) round($validated['price_per_night'] * 100),
-            'max_guests' => $validated['max_guests'],
-            'description' => $validated['description'] ?? null,
-            'pricing_unit' => $validated['pricing_unit'],
-            'status' => 'available',
+            'hotel_id'       => $hotel->id,
+            'room_number'    => $validated['room_number'],
+            'name'           => $validated['name'] ?? null,
+            'type'           => $validated['type'],
+            'floor'          => $validated['floor'] ?? null,
+            'price_per_night'=> (int) round($validated['price_per_night'] * 100),
+            'max_guests'     => $validated['max_guests'],
+            'description'    => $validated['description'] ?? null,
+            'pricing_unit'   => $validated['pricing_unit'],
+            'status'         => 'available',
         ]);
-
+     
         $this->attachMedia($room, $validated['images'] ?? [], 'image');
         $this->attachMedia($room, $validated['videos'] ?? [], 'video');
-
-        ActivityLog::record($hotel->id, Auth::user(), 'CREATE_ROOM', 'room', 'Room', $room->id,
-            "Room {$room->room_number}", "Added Room {$room->room_number} ({$room->type}).");
-
+     
+        ActivityLog::record(
+            $hotel->id, Auth::user(), 'CREATE_ROOM', 'room', 'Room', $room->id,
+            "Room {$room->room_number}",
+            "Added Room {$room->room_number} ({$room->type})."
+        );
+     
         return redirect()->route('hotel.rooms.index')->with('success', "Room {$room->room_number} added.");
     }
 

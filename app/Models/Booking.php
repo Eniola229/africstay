@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Booking extends Model
 {
@@ -118,5 +119,10 @@ class Booking extends Model
     public function balanceNaira(): float
     {
         return $this->balance / 100;
+    }
+
+    public function paymentAccount(): HasOne
+    {
+        return $this->hasOne(Payment::class)->latest();
     }
 }

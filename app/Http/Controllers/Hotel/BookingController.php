@@ -40,7 +40,7 @@ class BookingController extends Controller
 
     public function index(Request $request)
     {
-        $query = $this->hotel()->bookings()->with(['room', 'guest'])->latest();
+        $query = $this->hotel()->bookings()->with(['room', 'guest', 'paymentAccount'])->latest();
 
         if ($status = $request->query('status')) {
             $query->where('status', $status);
@@ -66,44 +66,17 @@ class BookingController extends Controller
         ]);
     }
 
-    /**
-     * Return rooms of a given type that are free for the requested datetime window.
-     */
-    public function availableRooms(Request $request)
-    {
-        $validated = $request->validate([
-            'type'       => ['required', 'in:standard,deluxe,suite,family'],
-            'check_in'   => ['required', 'date'],
-            'check_out'  => ['required', 'date', 'after:check_in'],
-        ]);
-
-        $rooms = $this->hotel()->rooms()
-            ->where('type', $validated['type'])
-            ->where('status', 'available')
-            ->get()
-            ->reject(fn (Room $room) => Booking::hasOverlap($room->id, $validated['check_in'], $validated['check_out']))
-            ->values();
-
-        return response()->json($rooms->map(fn ($r) => [
-            'id'                   => $r->id,
-            'room_number'          => $r->room_number,
-            'pricing_unit'         => $r->pricing_unit ?? 'night',
-            'price_per_night'      => $r->price_per_night,
-            'price_per_night_naira'=> $r->pricePerNightNaira(),
-        ]));
-    }
-
-    public function store(Request $request)
+      public function store(Request $request)
     {
         $this->authorizeBookingStaff();
         $hotel = $this->hotel();
 
         $validated = $request->validate([
-            'guest_id'     => ['nullable', 'uuid'],
-            'guest_name'   => ['required_without:guest_id', 'string', 'max:150'],
+            'guest_id'     => ['nullable', 'uuid', 'exists:guests,id'],
+            'guest_name'   => ['required_without:guest_id', 'string', 'max:150'], // Only required if no guest_id
             'guest_phone'  => ['nullable', 'string', 'max:20'],
             'guest_email'  => ['nullable', 'email', 'max:150'],
-            'room_id'      => ['required', 'uuid'],
+            'room_id'      => ['required', 'uuid', 'exists:rooms,id'],
             'check_in'     => ['required', 'date'],
             'check_out'    => ['required', 'date', 'after:check_in'],
             'notes'        => ['nullable', 'string', 'max:1000'],
@@ -136,7 +109,6 @@ class BookingController extends Controller
 
             $pricingUnit = $room->pricing_unit ?? 'night';
 
-            // Calculate units and total based on pricing unit
             [$units, $total] = $this->calculateUnitsAndTotal($checkIn, $checkOut, $room);
 
             $reference = $this->generateReference($hotel);
@@ -159,6 +131,16 @@ class BookingController extends Controller
                 'notes'             => $validated['notes'] ?? null,
             ]);
 
+            try {
+                $payment = $this->virtualAccounts->generate($booking);
+                $booking->load('paymentAccount');
+            } catch (\Exception $e) {
+                \Log::error('Virtual account creation failed for booking: ' . $booking->id, [
+                    'error' => $e->getMessage(),
+                    'booking_reference' => $booking->booking_reference
+                ]);
+            }
+
             ActivityLog::record(
                 $hotel->id, Auth::user(), 'CREATE_BOOKING', 'booking', 'Booking', $booking->id,
                 $booking->booking_reference,
@@ -168,23 +150,38 @@ class BookingController extends Controller
             return $booking;
         });
 
-        $booking->load('guest', 'room');
+        $booking->load(['guest', 'room', 'paymentAccount']);
 
+        $paymentAccount = $booking->paymentAccount;
+        $paymentMsg = "";
+        
+        if ($paymentAccount) {
+            $paymentMsg = " Payment: {$paymentAccount->virtual_account_number} ({$paymentAccount->virtual_account_bank}), amount ₦" . number_format($paymentAccount->amountNaira(), 2);
+        }
+
+        // Send email to guest with booking confirmation and payment details
         $this->notify->notify(
             $hotel,
             $booking->guest,
             'booking_confirmed',
-            "Dear {$booking->guest->name}, your booking at {$hotel->name} for Room {$booking->room->room_number} on {$booking->check_in->format('d M Y H:i')} is confirmed. Ref: {$booking->booking_reference}.",
-            'Your AfricStay booking is confirmed',
+            "Dear {$booking->guest->name}, your booking at {$hotel->name} for Room {$booking->room->room_number} on {$booking->check_in->format('d M Y H:i')} is confirmed. Ref: {$booking->booking_reference}.{$paymentMsg}",
+            'Your booking is confirmed',
             $this->emailBookingConfirmed($hotel, $booking)
         );
 
-        return redirect()->route('hotel.bookings.show', $booking->id)->with('success', "Booking {$booking->booking_reference} created.");
+        return redirect()->route('hotel.bookings.show', $booking->id)
+            ->with('success', "Booking {$booking->booking_reference} created. " . ($paymentAccount ? "Payment account: {$paymentAccount->virtual_account_number} ({$paymentAccount->virtual_account_bank})" : "Payment details will be generated at check-in."));
     }
-
     public function show(string $booking)
     {
-        $booking = $this->hotel()->bookings()->with(['room.media', 'guest', 'payments', 'roomServiceOrders.item'])->findOrFail($booking);
+        $booking = $this->hotel()->bookings()->with([
+            'room.media', 
+            'guest', 
+            'payments', 
+            'roomServiceOrders.item',
+            'paymentAccount'
+        ])->findOrFail($booking);
+        
         return view('hotel.bookings.show', ['booking' => $booking]);
     }
 
@@ -192,44 +189,67 @@ class BookingController extends Controller
     {
         $this->authorizeBookingStaff();
         $hotel   = $this->hotel();
-        $booking = $hotel->bookings()->with(['room', 'guest'])->findOrFail($booking);
+        $booking = $hotel->bookings()->with(['room', 'guest', 'paymentAccount'])->findOrFail($booking);
 
         if ($booking->status !== 'confirmed') {
             return back()->withErrors(['booking' => 'Only confirmed bookings can be checked in.']);
         }
 
         $validated = $request->validate([
-            'id_type'   => ['required', 'in:nin,passport,drivers_license,other'],
-            'id_number' => ['required', 'string', 'max:100'],
+            'id_type'   => ['nullable', 'in:nin,passport,drivers_license,other'],
+            'id_number' => ['nullable', 'string', 'max:100'],
         ]);
 
-        $booking->guest->update(['id_type' => $validated['id_type'], 'id_number' => $validated['id_number']]);
+        if (!empty($validated['id_type']) && !empty($validated['id_number'])) {
+            $booking->guest->update([
+                'id_type' => $validated['id_type'], 
+                'id_number' => $validated['id_number']
+            ]);
+        }
 
         DB::transaction(function () use ($booking) {
             $booking->update(['status' => 'checked_in', 'checked_in_at' => now()]);
             $booking->room->update(['status' => 'occupied']);
         });
 
-        $payment = $this->virtualAccounts->generate($booking);
+        $payment = $booking->paymentAccount;
+        if (!$payment) {
+            try {
+                $payment = $this->virtualAccounts->generate($booking);
+                $booking->load('paymentAccount');
+            } catch (\Exception $e) {
+                \Log::error('Virtual account creation failed during check-in: ' . $booking->id, [
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
 
         ActivityLog::record(
             $hotel->id, Auth::user(), 'CHECK_IN', 'booking', 'Booking', $booking->id, $booking->booking_reference,
             Auth::user()->name." checked in guest {$booking->guest->name} to Room {$booking->room->room_number}. Booking ref: {$booking->booking_reference}."
         );
 
-        $accountMsg = "Payment account for your stay: {$payment->virtual_account_number} ({$payment->virtual_account_bank}), amount due ₦".number_format($payment->amountNaira(), 2).". Ref: {$booking->booking_reference}.";
+        $accountMsg = "Payment account for your stay";
+        if ($payment) {
+            $accountMsg = "Payment account for your stay: {$payment->virtual_account_number} ({$payment->virtual_account_bank}), amount due ₦".number_format($payment->amountNaira(), 2).". Ref: {$booking->booking_reference}.";
+        }
 
         $this->notify->notify(
             $hotel,
             $booking->guest,
             'check_in',
             $accountMsg,
-            'Your payment details — AfricStay',
+            'Your payment details',
             $this->emailCheckIn($hotel, $booking, $payment, $accountMsg)
         );
 
+        $successMsg = "Guest checked in successfully.";
+        if ($payment) {
+            $successMsg .= " Payment account: {$payment->virtual_account_number} ({$payment->virtual_account_bank}).";
+        }
+
         return redirect()->route('hotel.bookings.show', $booking->id)
-            ->with('success', "Checked in. Payment account: {$payment->virtual_account_number} ({$payment->virtual_account_bank}).");
+            ->with('success', $successMsg);
     }
 
     public function checkOut(Request $request, string $booking)
@@ -276,7 +296,7 @@ class BookingController extends Controller
             $booking->guest,
             'check_out',
             $receiptMsg,
-            'Your receipt — AfricStay',
+            'Your receipt',
             $this->emailCheckOut($hotel, $booking, $receiptMsg)
         );
 
@@ -287,25 +307,41 @@ class BookingController extends Controller
     {
         $this->authorizeBookingStaff();
         $hotel   = $this->hotel();
-        $booking = $hotel->bookings()->findOrFail($booking);
+        $booking = $hotel->bookings()->with('room')->findOrFail($booking);
 
         if (in_array($booking->status, ['checked_out', 'cancelled'])) {
             return back()->withErrors(['booking' => 'This booking cannot be cancelled.']);
         }
 
-        $booking->update(['status' => 'cancelled', 'cancelled_at' => now()]);
+        \DB::transaction(function () use ($booking, $hotel) {
+            // Store the room ID for logging
+            $roomNumber = $booking->room->room_number ?? 'N/A';
+            
+            // Update booking status
+            $booking->update([
+                'status' => 'cancelled', 
+                'cancelled_at' => now()
+            ]);
+
+            // If the room was occupied (checked_in), make it available
+            // If it was confirmed, it was never occupied, so just leave it as available
+            if ($booking->status === 'checked_in' && $booking->room) {
+                $booking->room->update(['status' => 'available']);
+            }
+
+            // If there's a housekeeping task for this room, cancel it
+            \App\Models\HousekeepingTask::where('room_id', $booking->room_id)
+                ->where('status', 'pending')
+                ->update(['status' => 'cancelled']);
+        });
 
         ActivityLog::record(
             $hotel->id, Auth::user(), 'CANCEL_BOOKING', 'booking', 'Booking', $booking->id, $booking->booking_reference,
-            Auth::user()->name." cancelled booking {$booking->booking_reference}."
+            Auth::user()->name." cancelled booking {$booking->booking_reference}. Room {$booking->room->room_number} set to available."
         );
 
-        return redirect()->route('hotel.bookings.index')->with('success', 'Booking cancelled.');
+        return redirect()->route('hotel.bookings.index')->with('success', 'Booking cancelled successfully. Room is now available.');
     }
-
-    // -------------------------------------------------------------------------
-    // Helpers
-    // -------------------------------------------------------------------------
 
     protected function generateReference(Hotel $hotel): string
     {
@@ -313,21 +349,16 @@ class BookingController extends Controller
         return "AFS-{$shortCode}-".now()->format('Ymd').'-'.Str::upper(Str::random(4));
     }
 
-    /**
-     * Calculate the number of billable units and total amount in kobo.
-     * Returns [int $units, int $totalKobo].
-     */
     protected function calculateUnitsAndTotal(Carbon $checkIn, Carbon $checkOut, Room $room): array
     {
         $pricingUnit  = $room->pricing_unit ?? 'night';
-        $pricePerUnit = $room->price_per_night; // stored in kobo
+        $pricePerUnit = $room->price_per_night;
 
         switch ($pricingUnit) {
             case 'hour':
                 $units = max(1, (int) ceil($checkIn->diffInHours($checkOut)));
                 break;
             case 'day24':
-                // Rolling 24-hour blocks, ceiling
                 $hours = $checkIn->diffInMinutes($checkOut) / 60;
                 $units = max(1, (int) ceil($hours / 24));
                 break;
@@ -340,9 +371,6 @@ class BookingController extends Controller
         return [$units, $units * $pricePerUnit];
     }
 
-    /**
-     * Closes the checkout loop: checkout → dirty → [task assigned] → cleaned → verified → available.
-     */
     protected function createHousekeepingTask(Booking $booking): void
     {
         $hotel = $booking->hotel;
@@ -373,11 +401,9 @@ class BookingController extends Controller
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Styled email templates
-    // -------------------------------------------------------------------------
+    // ─── HOTEL BRANDED EMAIL TEMPLATES ─────────────────────────────────────────
 
-    protected function emailBase(string $preheader, string $body): string
+    protected function emailBase(string $preheader, string $body, string $hotelName): string
     {
         return <<<HTML
 <!DOCTYPE html>
@@ -385,44 +411,36 @@ class BookingController extends Controller
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>AfricStay</title>
+<title>{$hotelName}</title>
 <style>
-  body{margin:0;padding:0;background:#f4f6f9;font-family:'Helvetica Neue',Arial,sans-serif;color:#333}
-  .wrapper{max-width:600px;margin:32px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08)}
-  .header{background:linear-gradient(135deg,#1a5276 0%,#2e86c1 100%);padding:32px 40px;text-align:center}
-  .header img{height:40px;margin-bottom:8px}
-  .header h1{color:#fff;margin:0;font-size:22px;font-weight:700;letter-spacing:.5px}
-  .header p{color:rgba(255,255,255,.85);margin:4px 0 0;font-size:13px}
-  .body{padding:36px 40px}
-  .body p{margin:0 0 14px;line-height:1.7;font-size:15px}
-  .body h2{font-size:17px;margin:0 0 18px;color:#1a5276}
-  .info-table{width:100%;border-collapse:collapse;margin:20px 0}
-  .info-table td{padding:10px 14px;font-size:14px;border-bottom:1px solid #eef0f3}
-  .info-table td:first-child{color:#666;width:42%;font-weight:600}
-  .info-table tr:last-child td{border-bottom:none}
-  .badge{display:inline-block;background:#eaf4fb;color:#1a5276;border-radius:20px;padding:4px 14px;font-size:13px;font-weight:700;letter-spacing:.5px}
-  .btn{display:inline-block;margin:22px 0 8px;padding:13px 32px;background:#2e86c1;color:#fff;text-decoration:none;border-radius:6px;font-size:15px;font-weight:600}
-  .divider{border:none;border-top:1px solid #eef0f3;margin:24px 0}
-  .footer{background:#f4f6f9;padding:22px 40px;text-align:center}
-  .footer p{color:#999;font-size:12px;margin:4px 0;line-height:1.6}
-  .footer a{color:#2e86c1;text-decoration:none}
+    body{margin:0;padding:0;background:#f0f5f0;font-family:'Helvetica Neue',Arial,sans-serif;color:#2d2d2d;}
+    .wrapper{max-width:600px;margin:32px auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 16px rgba(10,54,34,0.08);}
+    .header{background:#0a3622;padding:32px 40px 28px;text-align:center;}
+    .header h1{color:#ffffff;margin:0;font-size:24px;font-weight:700;letter-spacing:0.5px;}
+    .header p{color:rgba(255,255,255,0.8);margin:6px 0 0;font-size:13px;font-weight:300;letter-spacing:0.3px;}
+    .body{padding:36px 40px 28px;}
+    .body p{margin:0 0 14px;line-height:1.7;font-size:15px;color:#2d2d2d;}
+    .body h2{font-size:20px;margin:0 0 16px;color:#0a3622;font-weight:600;}
+    .divider{border:none;border-top:1px solid #e8efe8;margin:24px 0;}
+    .footer{background:#f8faf8;padding:20px 40px;text-align:center;border-top:1px solid #e8efe8;}
+    .footer p{color:#6a8a6a;font-size:12px;margin:4px 0;line-height:1.6;}
+    .footer a{color:#0a3622;text-decoration:underline;}
 </style>
 </head>
 <body>
-<span style="display:none;max-height:0;overflow:hidden">{$preheader}</span>
+<span style="display:none;max-height:0;overflow:hidden;">{$preheader}</span>
 <div class="wrapper">
-  <div class="header">
-    <h1>AfricStay</h1>
-    <p>Hotel Management Made Simple</p>
-  </div>
-  <div class="body">
-    {$body}
-  </div>
-  <div class="footer">
-    <p>AfricStay Hotel Management System</p>
-    <p>Need help? <a href="mailto:support@africstayhms.com">support@africstayhms.com</a></p>
-    <p style="margin-top:10px;color:#ccc">© AfricStay. All rights reserved.</p>
-  </div>
+    <div class="header">
+        <h1>{$hotelName}</h1>
+        <p>Powered by AfricStay</p>
+    </div>
+    <div class="body">
+        {$body}
+    </div>
+    <div class="footer">
+        <p>{$hotelName} — Guest experience</p>
+        <p><a href="mailto:support@africstayhms.com">support@africstayhms.com</a></p>
+    </div>
 </div>
 </body>
 </html>
@@ -433,44 +451,110 @@ HTML;
     {
         $unit  = $booking->pricing_unit ?? 'night';
         $label = match($unit) { 'hour' => 'hour(s)', 'day24' => '24-hour block(s)', default => 'night(s)' };
+        
+        $payment = $booking->paymentAccount;
+        $paymentRow = '';
+        if ($payment) {
+            $paymentRow = "
+            <tr style='border-bottom:1px solid #e8efe8;'>
+                <td style='padding:12px 16px;font-size:14px;color:#4a6a4a;font-weight:600;width:45%;'>Payment account</td>
+                <td style='padding:12px 16px;font-size:14px;color:#0a3622;font-weight:500;'>{$payment->virtual_account_number} ({$payment->virtual_account_bank})</td>
+            </tr>
+            <tr>
+                <td style='padding:12px 16px;font-size:14px;color:#4a6a4a;font-weight:600;'>Amount due</td>
+                <td style='padding:12px 16px;font-size:14px;color:#0a3622;font-weight:600;'>₦".number_format($payment->amountNaira(), 2)."</td>
+            </tr>";
+        }
 
         $body = "
-        <h2>Booking Confirmed! 🎉</h2>
-        <p>Dear <strong>{$booking->guest->name}</strong>,</p>
-        <p>Your reservation at <strong>{$hotel->name}</strong> has been confirmed. Here are your booking details:</p>
-        <table class='info-table'>
-          <tr><td>Booking Ref</td><td><span class='badge'>{$booking->booking_reference}</span></td></tr>
-          <tr><td>Room</td><td>Room {$booking->room->room_number} (".ucfirst($booking->room->type).")</td></tr>
-          <tr><td>Check-in</td><td>{$booking->check_in->format('D, d M Y — H:i')}</td></tr>
-          <tr><td>Check-out</td><td>{$booking->check_out->format('D, d M Y — H:i')}</td></tr>
-          <tr><td>Duration</td><td>{$booking->nights} {$label}</td></tr>
-          <tr><td>Total Amount</td><td>₦".number_format($booking->totalAmountNaira(), 2)."</td></tr>
+        <h2>✅ Booking confirmed</h2>
+        
+        <p style='margin:0 0 16px;font-size:15px;line-height:1.7;color:#2d2d2d;'>Dear <strong style='color:#0a3622;'>{$booking->guest->name}</strong>,</p>
+        
+        <p style='margin:0 0 16px;font-size:15px;line-height:1.7;color:#2d2d2d;'>Your reservation at <strong style='color:#0a3622;'>{$hotel->name}</strong> is confirmed. Here's everything you need to know:</p>
+        
+        <table style='width:100%;border-collapse:collapse;margin:20px 0;background:#f8faf8;border-radius:8px;overflow:hidden;'>
+            <tr style='border-bottom:1px solid #e8efe8;'>
+                <td style='padding:12px 16px;font-size:14px;color:#4a6a4a;font-weight:600;width:45%;'>Booking reference</td>
+                <td style='padding:12px 16px;font-size:14px;color:#0a3622;font-weight:600;'>{$booking->booking_reference}</td>
+            </tr>
+            <tr style='border-bottom:1px solid #e8efe8;'>
+                <td style='padding:12px 16px;font-size:14px;color:#4a6a4a;font-weight:600;'>Room</td>
+                <td style='padding:12px 16px;font-size:14px;color:#0a3622;font-weight:500;'>Room {$booking->room->room_number} (".ucfirst($booking->room->type).")</td>
+            </tr>
+            <tr style='border-bottom:1px solid #e8efe8;'>
+                <td style='padding:12px 16px;font-size:14px;color:#4a6a4a;font-weight:600;'>Check-in</td>
+                <td style='padding:12px 16px;font-size:14px;color:#0a3622;font-weight:500;'>{$booking->check_in->format('D, d M Y — H:i')}</td>
+            </tr>
+            <tr style='border-bottom:1px solid #e8efe8;'>
+                <td style='padding:12px 16px;font-size:14px;color:#4a6a4a;font-weight:600;'>Check-out</td>
+                <td style='padding:12px 16px;font-size:14px;color:#0a3622;font-weight:500;'>{$booking->check_out->format('D, d M Y — H:i')}</td>
+            </tr>
+            <tr style='border-bottom:1px solid #e8efe8;'>
+                <td style='padding:12px 16px;font-size:14px;color:#4a6a4a;font-weight:600;'>Duration</td>
+                <td style='padding:12px 16px;font-size:14px;color:#0a3622;font-weight:500;'>{$booking->nights} {$label}</td>
+            </tr>
+            <tr>
+                <td style='padding:12px 16px;font-size:14px;color:#4a6a4a;font-weight:600;'>Total amount</td>
+                <td style='padding:12px 16px;font-size:14px;color:#0a3622;font-weight:600;'>₦".number_format($booking->totalAmountNaira(), 2)."</td>
+            </tr>
+            {$paymentRow}
         </table>
+        
         <hr class='divider'>
-        <p>Please keep your booking reference safe — you'll need it at check-in.</p>
-        <p>We look forward to welcoming you!</p>";
+        
+        " . ($payment ? "<p style='font-size:14px;color:#0a3622;font-weight:500;margin:0 0 12px;'>💳 Please transfer the amount above to the provided account number.</p>" : "") . "
+        
+        <p style='font-size:13px;color:#6a8a6a;margin:0;'>Keep your booking reference safe — you'll need it at check-in.</p>
+        <p style='font-size:13px;color:#6a8a6a;margin:4px 0 0;'>We look forward to welcoming you!</p>";
 
-        return $this->emailBase("Your booking at {$hotel->name} is confirmed. Ref: {$booking->booking_reference}", $body);
+        return $this->emailBase("Your booking at {$hotel->name} is confirmed", $body, $hotel->name);
     }
 
     protected function emailCheckIn(Hotel $hotel, Booking $booking, $payment, string $fallback): string
     {
-        $body = "
-        <h2>Welcome! You're Checked In ✅</h2>
-        <p>Dear <strong>{$booking->guest->name}</strong>,</p>
-        <p>You've been successfully checked in at <strong>{$hotel->name}</strong>. Please use the payment details below to complete your payment:</p>
-        <table class='info-table'>
-          <tr><td>Booking Ref</td><td><span class='badge'>{$booking->booking_reference}</span></td></tr>
-          <tr><td>Room</td><td>Room {$booking->room->room_number}</td></tr>
-          <tr><td>Bank</td><td>{$payment->virtual_account_bank}</td></tr>
-          <tr><td>Account Number</td><td><strong style='font-size:18px;letter-spacing:2px'>{$payment->virtual_account_number}</strong></td></tr>
-          <tr><td>Amount Due</td><td><strong>₦".number_format($payment->amountNaira(), 2)."</strong></td></tr>
-        </table>
-        <hr class='divider'>
-        <p style='font-size:13px;color:#666'>Payment is credited automatically once received. Contact the front desk if you have any issues.</p>
-        <p>Enjoy your stay! 🏨</p>";
+        $paymentRow = '';
+        if ($payment) {
+            $paymentRow = "
+            <tr style='border-bottom:1px solid #e8efe8;'>
+                <td style='padding:12px 16px;font-size:14px;color:#4a6a4a;font-weight:600;width:45%;'>Bank</td>
+                <td style='padding:12px 16px;font-size:14px;color:#0a3622;font-weight:500;'>{$payment->virtual_account_bank}</td>
+            </tr>
+            <tr style='border-bottom:1px solid #e8efe8;'>
+                <td style='padding:12px 16px;font-size:14px;color:#4a6a4a;font-weight:600;'>Account number</td>
+                <td style='padding:12px 16px;font-size:16px;color:#0a3622;font-weight:600;letter-spacing:2px;'>{$payment->virtual_account_number}</td>
+            </tr>
+            <tr>
+                <td style='padding:12px 16px;font-size:14px;color:#4a6a4a;font-weight:600;'>Amount due</td>
+                <td style='padding:12px 16px;font-size:14px;color:#0a3622;font-weight:600;'>₦".number_format($payment->amountNaira(), 2)."</td>
+            </tr>";
+        }
 
-        return $this->emailBase("Payment details for your stay at {$hotel->name}", $body);
+        $body = "
+        <h2>🏨 Welcome! You're checked in</h2>
+        
+        <p style='margin:0 0 16px;font-size:15px;line-height:1.7;color:#2d2d2d;'>Dear <strong style='color:#0a3622;'>{$booking->guest->name}</strong>,</p>
+        
+        <p style='margin:0 0 16px;font-size:15px;line-height:1.7;color:#2d2d2d;'>You've been checked in at <strong style='color:#0a3622;'>{$hotel->name}</strong>. " . ($payment ? "Here are your payment details:" : "We hope you enjoy your stay!") . "</p>
+        
+        <table style='width:100%;border-collapse:collapse;margin:20px 0;background:#f8faf8;border-radius:8px;overflow:hidden;'>
+            <tr style='border-bottom:1px solid #e8efe8;'>
+                <td style='padding:12px 16px;font-size:14px;color:#4a6a4a;font-weight:600;width:45%;'>Booking reference</td>
+                <td style='padding:12px 16px;font-size:14px;color:#0a3622;font-weight:500;'>{$booking->booking_reference}</td>
+            </tr>
+            <tr style='border-bottom:1px solid #e8efe8;'>
+                <td style='padding:12px 16px;font-size:14px;color:#4a6a4a;font-weight:600;'>Room</td>
+                <td style='padding:12px 16px;font-size:14px;color:#0a3622;font-weight:500;'>Room {$booking->room->room_number}</td>
+            </tr>
+            {$paymentRow}
+        </table>
+        
+        <hr class='divider'>
+        
+        <p style='font-size:13px;color:#6a8a6a;margin:0;'>Payments are credited automatically once received.</p>
+        <p style='font-size:13px;color:#6a8a6a;margin:4px 0 0;'>Enjoy your stay! 🏨</p>";
+
+        return $this->emailBase("Payment details for your stay at {$hotel->name}", $body, $hotel->name);
     }
 
     protected function emailCheckOut(Hotel $hotel, Booking $booking, string $fallback): string
@@ -478,53 +562,89 @@ HTML;
         $balance = $booking->balanceNaira();
 
         $body = "
-        <h2>Thank You for Staying With Us 🙏</h2>
-        <p>Dear <strong>{$booking->guest->name}</strong>,</p>
-        <p>We hope you had a wonderful stay at <strong>{$hotel->name}</strong>. Here is your receipt summary:</p>
-        <table class='info-table'>
-          <tr><td>Booking Ref</td><td><span class='badge'>{$booking->booking_reference}</span></td></tr>
-          <tr><td>Room</td><td>Room {$booking->room->room_number}</td></tr>
-          <tr><td>Check-in</td><td>{$booking->check_in->format('D, d M Y — H:i')}</td></tr>
-          <tr><td>Check-out</td><td>{$booking->check_out->format('D, d M Y — H:i')}</td></tr>
-          <tr><td>Total Amount</td><td>₦".number_format($booking->totalAmountNaira(), 2)."</td></tr>
-          <tr><td>Amount Paid</td><td>₦".number_format($booking->amountPaidNaira(), 2)."</td></tr>
-          <tr><td>Balance</td><td>".($balance > 0 ? "<span style='color:#c0392b;font-weight:bold'>₦".number_format($balance, 2)." (Outstanding)</span>" : "<span style='color:#27ae60;font-weight:bold'>Fully Paid</span>")."</td></tr>
+        <h2>🙏 Thank you for staying with us</h2>
+        
+        <p style='margin:0 0 16px;font-size:15px;line-height:1.7;color:#2d2d2d;'>Dear <strong style='color:#0a3622;'>{$booking->guest->name}</strong>,</p>
+        
+        <p style='margin:0 0 16px;font-size:15px;line-height:1.7;color:#2d2d2d;'>We hope you had a wonderful stay at <strong style='color:#0a3622;'>{$hotel->name}</strong>. Here's your receipt summary:</p>
+        
+        <table style='width:100%;border-collapse:collapse;margin:20px 0;background:#f8faf8;border-radius:8px;overflow:hidden;'>
+            <tr style='border-bottom:1px solid #e8efe8;'>
+                <td style='padding:12px 16px;font-size:14px;color:#4a6a4a;font-weight:600;width:45%;'>Booking reference</td>
+                <td style='padding:12px 16px;font-size:14px;color:#0a3622;font-weight:500;'>{$booking->booking_reference}</td>
+            </tr>
+            <tr style='border-bottom:1px solid #e8efe8;'>
+                <td style='padding:12px 16px;font-size:14px;color:#4a6a4a;font-weight:600;'>Room</td>
+                <td style='padding:12px 16px;font-size:14px;color:#0a3622;font-weight:500;'>Room {$booking->room->room_number}</td>
+            </tr>
+            <tr style='border-bottom:1px solid #e8efe8;'>
+                <td style='padding:12px 16px;font-size:14px;color:#4a6a4a;font-weight:600;'>Check-in</td>
+                <td style='padding:12px 16px;font-size:14px;color:#0a3622;font-weight:500;'>{$booking->check_in->format('D, d M Y — H:i')}</td>
+            </tr>
+            <tr style='border-bottom:1px solid #e8efe8;'>
+                <td style='padding:12px 16px;font-size:14px;color:#4a6a4a;font-weight:600;'>Check-out</td>
+                <td style='padding:12px 16px;font-size:14px;color:#0a3622;font-weight:500;'>{$booking->check_out->format('D, d M Y — H:i')}</td>
+            </tr>
+            <tr style='border-bottom:1px solid #e8efe8;'>
+                <td style='padding:12px 16px;font-size:14px;color:#4a6a4a;font-weight:600;'>Total amount</td>
+                <td style='padding:12px 16px;font-size:14px;color:#0a3622;font-weight:500;'>₦".number_format($booking->totalAmountNaira(), 2)."</td>
+            </tr>
+            <tr style='border-bottom:1px solid #e8efe8;'>
+                <td style='padding:12px 16px;font-size:14px;color:#4a6a4a;font-weight:600;'>Amount paid</td>
+                <td style='padding:12px 16px;font-size:14px;color:#0a3622;font-weight:500;'>₦".number_format($booking->amountPaidNaira(), 2)."</td>
+            </tr>
+            <tr>
+                <td style='padding:12px 16px;font-size:14px;color:#4a6a4a;font-weight:600;'>Balance</td>
+                <td style='padding:12px 16px;font-size:14px;font-weight:600;'>".($balance > 0 ? "<span style='color:#8a1a1a;'>₦".number_format($balance, 2)." (outstanding)</span>" : "<span style='color:#0a3622;'>Fully paid ✓</span>")."</td>
+            </tr>
         </table>
+        
         <hr class='divider'>
-        <p>We hope to see you again soon! For any queries, contact us at <a href='mailto:support@africstayhms.com'>support@africstayhms.com</a>.</p>";
+        
+        <p style='font-size:13px;color:#6a8a6a;margin:0;'>We hope to see you again soon!</p>
+        <p style='font-size:13px;color:#6a8a6a;margin:4px 0 0;'>Questions? <a href='mailto:support@africstayhms.com' style='color:#0a3622;text-decoration:underline;'>support@africstayhms.com</a></p>";
 
-        return $this->emailBase("Your receipt from {$hotel->name} — Ref {$booking->booking_reference}", $body);
+        return $this->emailBase("Your receipt from {$hotel->name}", $body, $hotel->name);
     }
 
-    public function availableRooms(Request $request)
-    {
-        $validated = $request->validate([
-            'type'      => ['required', 'in:standard,deluxe,suite,family'],
-            'check_in'  => ['required', 'date'],
-            'check_out' => ['required', 'date', 'after:check_in'],
-        ]);
-     
-        $hotel = $this->hotel();
-     
-        $rooms = $hotel->rooms()
-            ->where('type', $validated['type'])
-            ->where('status', 'available')
-            ->get()
-            ->reject(fn (Room $room) => Booking::hasOverlap(
-                $room->id,
-                $validated['check_in'],
-                $validated['check_out']
-            ))
-            ->values();
-     
-        return response()->json(
-            $rooms->map(fn ($r) => [
-                'id'                    => $r->id,
-                'room_number'           => $r->room_number,
-                'pricing_unit'          => $r->pricing_unit ?? 'night',
-                'price_per_night'       => $r->price_per_night,          // kobo
-                'price_per_night_naira' => $r->pricePerNightNaira(),     // naira (float)
-            ])
-        );
-    }
+public function availableRooms(Request $request)
+{
+    $validated = $request->validate([
+        'type'      => ['required', 'in:standard,deluxe,suite,family'],
+        'check_in'  => ['required', 'date'],
+        'check_out' => ['required', 'date', 'after:check_in'],
+    ]);
+ 
+    $hotel = $this->hotel();
+ 
+    $rooms = $hotel->rooms()
+        ->where('type', $validated['type'])
+        ->where('status', 'available')
+        ->get()
+        ->values();
+ 
+    return response()->json(
+        $rooms->map(fn ($r) => [
+            'id'                    => $r->id,
+            'room_number'           => $r->room_number,
+            'pricing_unit'          => $r->pricing_unit ?? 'night',
+            'price_per_night'       => $r->price_per_night,
+            'price_per_night_naira' => $r->pricePerNightNaira(),
+        ])
+    );
+}
+public function checkPayment(string $booking)
+{
+    $booking = $this->hotel()->bookings()->with('payments')->findOrFail($booking);
+    
+    $latestPayment = $booking->payments->sortByDesc('created_at')->first();
+    
+    return response()->json([
+        'payment_confirmed' => $latestPayment && $latestPayment->status === 'confirmed',
+        'payment_status' => $latestPayment ? $latestPayment->status : 'no_payment',
+        'balance' => $booking->balance,
+        'amount_paid' => $booking->amount_paid,
+        'booking_status' => $booking->status,
+    ]);
+}
 }

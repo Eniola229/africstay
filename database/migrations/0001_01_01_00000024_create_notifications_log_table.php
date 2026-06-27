@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('notifications_log', function (Blueprint $table) {
+        Schema::create('notification_logs', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->foreignUuid('hotel_id')->constrained('hotels')->cascadeOnDelete();
             $table->uuid('guest_id')->nullable();

@@ -19,26 +19,36 @@
                 <div class="col-md-6 mb-3 position-relative">
                     <label class="form-label fw-bold">Search by name or phone</label>
                     <input type="text" id="guestSearch" class="form-control" placeholder="Start typing...">
-                    <div id="guestResults" class="list-group position-absolute w-100" style="z-index:10;"></div>
+                    <div id="guestResults" class="list-group position-absolute w-100" style="z-index:10;max-height:200px;overflow-y:auto;"></div>
                 </div>
             </div>
-            <div class="row" id="newGuestFields">
+
+            {{-- Guest Form Fields --}}
+            <div class="row" id="guestFields">
                 <div class="col-md-4 mb-3">
                     <label class="form-label fw-bold">Guest name <span class="text-danger">*</span></label>
-                    <input type="text" name="guest_name" id="guest_name" class="form-control @error('guest_name') is-invalid @enderror" required>
+                    <input type="text" name="guest_name" id="guest_name" 
+                           class="form-control @error('guest_name') is-invalid @enderror" 
+                           value="{{ old('guest_name') }}" required>
                     @error('guest_name') <div class="invalid-feedback">{{ $message }}</div> @enderror
                 </div>
                 <div class="col-md-4 mb-3">
                     <label class="form-label fw-bold">Phone</label>
-                    <input type="text" name="guest_phone" id="guest_phone" class="form-control">
+                    <input type="text" name="guest_phone" id="guest_phone" 
+                           class="form-control" value="{{ old('guest_phone') }}">
                 </div>
                 <div class="col-md-4 mb-3">
                     <label class="form-label fw-bold">Email</label>
-                    <input type="email" name="guest_email" id="guest_email" class="form-control @error('guest_email') is-invalid @enderror">
+                    <input type="email" name="guest_email" id="guest_email" 
+                           class="form-control @error('guest_email') is-invalid @enderror" 
+                           value="{{ old('guest_email') }}">
                     @error('guest_email') <div class="invalid-feedback">{{ $message }}</div> @enderror
                 </div>
             </div>
+
+            {{-- Selected Guest Banner --}}
             <div id="selectedGuestBanner" class="alert alert-success d-none mb-3">
+                <i class="feather-user-check me-1"></i>
                 Using existing guest: <strong id="selectedGuestName"></strong>
                 <button type="button" class="btn btn-sm btn-link" onclick="clearSelectedGuest()">Change</button>
             </div>
@@ -47,13 +57,13 @@
 
             <h6 class="fw-bold mb-3">2. Dates, Times &amp; Room</h6>
             <div class="row">
-                {{-- datetime-local gives both date AND time in one native input --}}
                 <div class="col-md-3 mb-3">
                     <label class="form-label fw-bold">Check-in <span class="text-danger">*</span></label>
                     <input type="datetime-local"
                            name="check_in"
                            id="check_in"
                            class="form-control @error('check_in') is-invalid @enderror"
+                           value="{{ old('check_in') }}"
                            required>
                     @error('check_in') <div class="invalid-feedback">{{ $message }}</div> @enderror
                 </div>
@@ -63,6 +73,7 @@
                            name="check_out"
                            id="check_out"
                            class="form-control @error('check_out') is-invalid @enderror"
+                           value="{{ old('check_out') }}"
                            required>
                     @error('check_out') <div class="invalid-feedback">{{ $message }}</div> @enderror
                 </div>
@@ -99,7 +110,7 @@
 
             <div class="mb-4">
                 <label class="form-label fw-bold">Notes <span class="text-muted">(optional)</span></label>
-                <textarea name="notes" rows="2" class="form-control"></textarea>
+                <textarea name="notes" rows="2" class="form-control">{{ old('notes') }}</textarea>
             </div>
 
             <button type="submit" class="btn btn-primary btn-lg px-5">
@@ -114,56 +125,108 @@
 const searchUrl    = "{{ route('hotel.guests.search') }}";
 const availUrl     = "{{ route('hotel.bookings.available-rooms') }}";
 let debounceTimer;
-let pickedRoom = null; // { id, room_number, price_per_night_naira, pricing_unit }
+let pickedRoom = null;
 
 // ── Guest autocomplete ────────────────────────────────────────────────────────
 document.getElementById('guestSearch').addEventListener('input', function (e) {
     clearTimeout(debounceTimer);
     const q = e.target.value.trim();
-    if (q.length < 2) { document.getElementById('guestResults').innerHTML = ''; return; }
+    const resultsBox = document.getElementById('guestResults');
+    
+    if (q.length < 2) { 
+        resultsBox.innerHTML = ''; 
+        return; 
+    }
+    
     debounceTimer = setTimeout(() => {
         fetch(`${searchUrl}?q=${encodeURIComponent(q)}`)
             .then(r => r.json())
             .then(guests => {
-                const box = document.getElementById('guestResults');
                 if (!guests.length) {
-                    box.innerHTML = '<span class="list-group-item text-muted">No guests found</span>';
+                    resultsBox.innerHTML = '<span class="list-group-item text-muted">No guests found</span>';
                     return;
                 }
-                box.innerHTML = guests.map(g =>
+                resultsBox.innerHTML = guests.map(g =>
                     `<a href="#" class="list-group-item list-group-item-action"
-                        onclick="selectGuest(event,'${g.id}','${g.name.replace(/'/g,"\\'")}')">
+                        onclick="selectGuest(event, '${g.id}', '${g.name.replace(/'/g,"\\'")}', '${g.phone || ''}', '${g.email || ''}')">
                         ${g.name}
                         <small class="text-muted ms-1">${g.phone ?? g.email ?? ''}</small>
                     </a>`
                 ).join('');
+            })
+            .catch(() => {
+                resultsBox.innerHTML = '<span class="list-group-item text-danger">Error loading guests</span>';
             });
     }, 300);
 });
 
-function selectGuest(e, id, name) {
+// Close results when clicking outside
+document.addEventListener('click', function(e) {
+    const search = document.getElementById('guestSearch');
+    const results = document.getElementById('guestResults');
+    if (!search.contains(e.target) && !results.contains(e.target)) {
+        results.innerHTML = '';
+    }
+});
+
+function selectGuest(e, id, name, phone, email) {
     e.preventDefault();
+    
+    // Set the hidden guest_id
     document.getElementById('guest_id').value = id;
-    document.getElementById('guestResults').innerHTML = '';
-    document.getElementById('guestSearch').value = '';
-    document.getElementById('newGuestFields').style.display = 'none';
-    document.getElementById('guest_name').required = false;
+    
+    // Populate the form fields with guest data
+    document.getElementById('guest_name').value = name;
+    document.getElementById('guest_phone').value = phone;
+    document.getElementById('guest_email').value = email;
+    
+    // Hide the guest fields section
+    document.getElementById('guestFields').style.display = 'none';
+    
+    // Remove required attribute from guest_name since we have a guest_id
+    document.getElementById('guest_name').removeAttribute('required');
+    
+    // Show the selected guest banner
     document.getElementById('selectedGuestBanner').classList.remove('d-none');
     document.getElementById('selectedGuestName').textContent = name;
+    
+    // Clear search and results
+    document.getElementById('guestSearch').value = '';
+    document.getElementById('guestResults').innerHTML = '';
+    
+    // Clear any validation errors
+    document.getElementById('guest_name').classList.remove('is-invalid');
+    document.getElementById('guest_email').classList.remove('is-invalid');
+    const nameError = document.getElementById('guest_name').parentElement.querySelector('.invalid-feedback');
+    const emailError = document.getElementById('guest_email').parentElement.querySelector('.invalid-feedback');
+    if (nameError) nameError.style.display = 'none';
+    if (emailError) emailError.style.display = 'none';
 }
 
 function clearSelectedGuest() {
+    // Clear the hidden guest_id
     document.getElementById('guest_id').value = '';
-    document.getElementById('newGuestFields').style.display = '';
-    document.getElementById('guest_name').required = true;
+    
+    // Clear the form fields
+    document.getElementById('guest_name').value = '';
+    document.getElementById('guest_phone').value = '';
+    document.getElementById('guest_email').value = '';
+    
+    // Show the guest fields section
+    document.getElementById('guestFields').style.display = '';
+    
+    // Add required attribute back to guest_name
+    document.getElementById('guest_name').setAttribute('required', 'required');
+    
+    // Hide the selected guest banner
     document.getElementById('selectedGuestBanner').classList.add('d-none');
 }
 
 // ── Room availability ─────────────────────────────────────────────────────────
 function checkAvailability() {
     const type     = document.getElementById('room_type').value;
-    const checkIn  = document.getElementById('check_in').value;   // "2025-07-01T14:00"
-    const checkOut = document.getElementById('check_out').value;  // "2025-07-03T11:00"
+    const checkIn  = document.getElementById('check_in').value;
+    const checkOut = document.getElementById('check_out').value;
     const errBox   = document.getElementById('availabilityError');
     const list     = document.getElementById('availableRoomsList');
     const btn      = document.getElementById('checkAvailBtn');
@@ -187,7 +250,6 @@ function checkAvailability() {
     list.innerHTML = '';
     resetSummary();
 
-    // The backend `availableRooms` validator accepts 'date' which matches ISO datetime strings too.
     const params = new URLSearchParams({ type, check_in: checkIn, check_out: checkOut });
 
     fetch(`${availUrl}?${params}`)
@@ -240,7 +302,7 @@ function pickRoom(id, priceNaira, pricingUnit, roomNumber, el) {
     updateSummary();
 }
 
-// ── Booking summary (recalculates on room pick and on date change) ─────────────
+// ── Booking summary ──────────────────────────────────────────────────────────
 document.getElementById('check_in').addEventListener('change', updateSummary);
 document.getElementById('check_out').addEventListener('change', updateSummary);
 
@@ -262,7 +324,7 @@ function updateSummary() {
         case 'day24':
             units = Math.max(1, Math.ceil(diffMinutes / (60 * 24)));
             break;
-        default: // night
+        default:
             units = Math.max(1, Math.ceil(diffMinutes / (60 * 24)));
             break;
     }
