@@ -37,7 +37,6 @@
                         <th class="fs-11 text-uppercase text-muted fw-semibold">Booking</th>
                         <th class="fs-11 text-uppercase text-muted fw-semibold">Guest</th>
                         <th class="fs-11 text-uppercase text-muted fw-semibold">Amount</th>
-                        <th class="fs-11 text-uppercase text-muted fw-semibold">Provider</th>
                         <th class="fs-11 text-uppercase text-muted fw-semibold">Paid At</th>
                     </tr>
                 </thead>
@@ -47,7 +46,6 @@
                         <td><a href="{{ route('hotel.bookings.show', $payment->booking_id) }}" class="text-primary fw-semibold">{{ $payment->booking->booking_reference }}</a></td>
                         <td>{{ $payment->booking->guest->name }}</td>
                         <td class="fw-bold">₦{{ number_format($payment->amountNaira(), 2) }}</td>
-                        <td class="text-capitalize">{{ $payment->provider }}</td>
                         <td class="text-muted fs-13">{{ $payment->paid_at?->format('d M Y H:i') }}</td>
                     </tr>
                     @endforeach
@@ -71,22 +69,32 @@
         <a href="{{ route('hotel.wallet.withdrawals') }}" class="btn btn-sm btn-outline-primary">View All</a>
     </div>
     <div class="card-body p-0">
-        <table class="table mb-0">
-            <tbody>
-                @foreach($withdrawalHistory as $w)
-                <tr>
-                    <td>₦{{ number_format($w->amountNaira(), 2) }}</td>
-                    <td>{{ $w->account_number }} ({{ $w->bank_name }})</td>
-                    <td>
-                        <span class="badge {{ match($w->status) { 'completed' => 'bg-success', 'processing' => 'bg-info text-white', 'pending' => 'bg-secondary', default => 'bg-danger' } }}">
-                            {{ ucfirst($w->status) }}
-                        </span>
-                    </td>
-                    <td class="text-muted fs-13">{{ $w->created_at->format('d M Y') }}</td>
-                </tr>
-                @endforeach
-            </tbody>
-        </table>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="fs-11 text-uppercase text-muted fw-semibold">Amount</th>
+                        <th class="fs-11 text-uppercase text-muted fw-semibold">Bank Account</th>
+                        <th class="fs-11 text-uppercase text-muted fw-semibold">Status</th>
+                        <th class="fs-11 text-uppercase text-muted fw-semibold">Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($withdrawalHistory as $w)
+                    <tr>
+                        <td class="fw-bold">₦{{ number_format($w->amountNaira(), 2) }}</td>
+                        <td>{{ $w->account_number }} ({{ $w->bank_name }})</td>
+                        <td>
+                            <span class="badge {{ match($w->status) { 'completed' => 'bg-success', 'processing' => 'bg-info text-white', 'pending' => 'bg-secondary', default => 'bg-danger' } }}">
+                                {{ ucfirst($w->status) }}
+                            </span>
+                        </td>
+                        <td class="text-muted fs-13">{{ $w->created_at->format('d M Y') }}</td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 @endif

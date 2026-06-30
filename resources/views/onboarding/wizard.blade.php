@@ -5,18 +5,32 @@
 <div style="max-width:900px; margin:0 auto;">
 
     <div class="text-center mb-4">
-        <img src="{{ asset('dashboard/assets/images/favicon.png') }}" style="height:36px;" alt="AfricStay">
+        <img src="{{ asset('ashboard/assets/images/favicon.png') }}" style="height:36px;" alt="AfricStay">
     </div>
 
+    <style>
+    .step-col { width: 120px; }
+    .step-circle { width: 36px; height: 36px; }
+    .step-label { font-size: 12px; }
+    .step-connector { width: 40px; height: 2px; margin-bottom: 18px; }
+
+    @media (max-width: 576px) {
+        .onboarding-steps { row-gap: 16px; }
+        .step-col { width: 70px; }
+        .step-circle { width: 28px; height: 28px; font-size: 13px; }
+        .step-label { font-size: 9px; line-height: 1.2; }
+        .step-connector { width: 16px; margin-bottom: 14px; }
+    }
+    </style>
+
     {{-- Progress steps --}}
-    <div class="d-flex justify-content-center mb-5">
+    <div class="d-flex justify-content-center mb-5 onboarding-steps flex-wrap">
         @foreach(['Hotel Details','Choose Plan','Add Rooms','Invite Staff'] as $i => $label)
         @php $n = $i + 1; @endphp
-        <div class="d-flex align-items-center">
-            <div class="d-flex flex-column align-items-center" style="width:120px;">
-                <div class="rounded-circle d-flex align-items-center justify-content-center fw-bold"
-                     style="width:36px;height:36px;
-                            background:{{ $n <= $step ? 'var(--bs-primary,#2ECC71)' : '#e9ecef' }};
+        <div class="d-flex align-items-center step-item">
+            <div class="d-flex flex-column align-items-center step-col">
+                <div class="rounded-circle d-flex align-items-center justify-content-center fw-bold step-circle"
+                     style="background:{{ $n <= $step ? 'var(--bs-primary,#2ECC71)' : '#e9ecef' }};
                             color:{{ $n <= $step ? '#fff' : '#6c757d' }};">
                     @if($n < $step)
                         <i class="feather-check"></i>
@@ -24,10 +38,10 @@
                         {{ $n }}
                     @endif
                 </div>
-                <small class="mt-2 text-center {{ $n == $step ? 'fw-bold' : 'text-muted' }}" style="font-size:12px;">{{ $label }}</small>
+                <small class="mt-2 text-center step-label {{ $n == $step ? 'fw-bold' : 'text-muted' }}">{{ $label }}</small>
             </div>
             @if($n < 4)
-            <div style="width:40px;height:2px;background:{{ $n < $step ? 'var(--bs-primary,#2ECC71)' : '#e9ecef' }};margin-bottom:18px;"></div>
+            <div class="step-connector" style="background:{{ $n < $step ? 'var(--bs-primary,#2ECC71)' : '#e9ecef' }};"></div>
             @endif
         </div>
         @endforeach
@@ -128,7 +142,7 @@
                     <i class="feather-plus me-1"></i> Add Another Room
                 </button>
 
-                <div class="d-flex gap-2">
+                <div class="d-flex gap-2 flex-wrap">
                     <button type="submit" class="btn btn-primary btn-lg px-5">
                         Save Rooms <i class="feather-arrow-right ms-1"></i>
                     </button>
@@ -175,7 +189,7 @@
                 </div>
                 <small class="text-muted d-block mb-4">Provide at least an email or phone so they get their invite link.</small>
 
-                <div class="d-flex gap-2">
+                <div class="d-flex gap-2 flex-wrap">
                     <button type="submit" class="btn btn-primary btn-lg px-5">
                         <i class="feather-send me-1"></i> Send Invite &amp; Finish
                     </button>

@@ -6,14 +6,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="AfricStay — Hotel & Guesthouse Management System for Africa. Bookings, payments, staff and reports, all in one place.">
     <title>AfricStay — Hotel & Guesthouse Management System</title>
-    <link rel="shortcut icon" type="image/x-icon" href="{{ asset('dashboard/assets/images/favicon.png') }}">
-    <link rel="stylesheet" href="{{ asset('dashboard/assets/css/bootstrap.min.css') }}">
-    <link rel="stylesheet" href="{{ asset('dashboard/assets/vendors/css/vendors.min.css') }}">
-    <link rel="stylesheet" href="{{ asset('dashboard/assets/css/theme.min.css') }}">
-    <link rel="stylesheet" href="{{ asset('dashboard/assets/css/africstay-theme.css') }}">
+    <link rel="shortcut icon" type="image/x-icon" href="{{ asset('ashboard/assets/images/favicon.png') }}">
+    <link rel="stylesheet" href="{{ asset('ashboard/assets/css/bootstrap.min.css') }}">
+    <link rel="stylesheet" href="{{ asset('ashboard/assets/vendors/css/vendors.min.css') }}">
+    <link rel="stylesheet" href="{{ asset('ashboard/assets/css/theme.min.css') }}">
+    <link rel="stylesheet" href="{{ asset('ashboard/assets/css/africstay-theme.css') }}">
     <style>
         * { scroll-behavior: smooth; }
-        
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
             color: #0f172a;
@@ -528,14 +528,39 @@
             min-height: 40px;
         }
 
+        /* Price block — fixed: tight spacing, strike line sits directly above
+           the live price, no inherited 48px line-height bleeding into it. */
+        .pricing-price-wrap {
+            min-height: 78px;
+            margin-bottom: 6px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+        }
+
+        .price-strike {
+            font-size: 16px;
+            line-height: 1.2;
+            color: #9ca3af;
+            text-decoration: line-through;
+            font-weight: 600;
+            height: 20px;
+            margin-bottom: 2px;
+        }
+
+        .price-strike:empty,
+        .price-strike.is-hidden {
+            visibility: hidden;
+        }
+
         .pricing-price {
             font-size: 48px;
             font-weight: 800;
             color: #0f172a;
-            margin-bottom: 6px;
+            line-height: 1.1;
         }
 
-        .pricing-price span {
+        .pricing-price .price-period {
             font-size: 16px;
             color: #6b7280;
             font-weight: 500;
@@ -731,7 +756,7 @@
 <nav class="navbar-pro d-flex align-items-center justify-content-between px-4">
     <div class="d-flex align-items-center flex-grow-1">
         <a href="{{ route('home') }}" class="brand">
-            <img src="{{ asset('dashboard/assets/images/favicon.png') }}" alt="AfricStay">
+            <img src="{{ asset('ashboard/assets/images/favicon.png') }}" alt="AfricStay">
             <span>AfricStay</span>
         </a>
     </div>
@@ -767,12 +792,6 @@
                         AfricStay is the all-in-one booking, payments and management system for small and mid-sized hotels and guesthouses. No more cash leakage, double bookings, or wondering what your hotel actually made last week.
                     </p>
 
-                    <div class="hero-image">
-                        <div class="hero-image-box">
-                            <img src="{{ asset('dashboard/assets/images/dashboard.png') }}" alt="AfricStay Dashboard" style="width: 100%; height: auto; border-radius: 12px;">
-                        </div>
-                    </div>
-
                     <div class="hero-stats">
                         <div class="stat-item">
                             <h3>₦20k</h3>
@@ -793,9 +812,7 @@
             <div class="col-lg-6">
                 <div class="hero-image">
                     <div class="hero-image-box">
-                        <div style="aspect-ratio: 16/10; background: linear-gradient(135deg, #e5e7eb, #d1d5db); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #6b7280;">
-                            Dashboard Preview
-                        </div>
+                        <img src="{{ asset('ashboard/assets/images/dashboard.jpeg') }}" alt="AfricStay Dashboard" style="width: 100%; height: auto; border-radius: 12px;">
                     </div>
                 </div>
             </div>
@@ -1004,7 +1021,16 @@
             <div class="pricing-card">
                 <h3>Starter</h3>
                 <p>Perfect for guesthouses getting organized.</p>
-                <div class="pricing-price">₦20,000<span>/month</span></div>
+
+                <div class="pricing-price-wrap"
+                     data-monthly="20000"
+                     data-yearly-full="240000"
+                     data-yearly-discounted="192000">
+                    <div class="price-strike is-hidden"></div>
+                    <div class="pricing-price">
+                        <span class="price-amount">₦20,000</span><span class="price-period">/month</span>
+                    </div>
+                </div>
 
                 <button class="btn-green">Get Started</button>
 
@@ -1024,7 +1050,16 @@
                 <span class="pricing-badge">Most Popular</span>
                 <h3>Growth</h3>
                 <p>For hotels ready to scale operations.</p>
-                <div class="pricing-price">₦40,000<span>/month</span></div>
+
+                <div class="pricing-price-wrap"
+                     data-monthly="40000"
+                     data-yearly-full="480000"
+                     data-yearly-discounted="384000">
+                    <div class="price-strike is-hidden"></div>
+                    <div class="pricing-price">
+                        <span class="price-amount">₦40,000</span><span class="price-period">/month</span>
+                    </div>
+                </div>
 
                 <button class="btn-green">Get Started</button>
 
@@ -1045,7 +1080,16 @@
             <div class="pricing-card">
                 <h3>Pro</h3>
                 <p>For multi-location hotels at scale.</p>
-                <div class="pricing-price">₦80,000<span>/month</span></div>
+
+                <div class="pricing-price-wrap"
+                     data-monthly="80000"
+                     data-yearly-full="960000"
+                     data-yearly-discounted="768000">
+                    <div class="price-strike is-hidden"></div>
+                    <div class="pricing-price">
+                        <span class="price-amount">₦80,000</span><span class="price-period">/month</span>
+                    </div>
+                </div>
 
                 <button class="btn-green">Contact Sales</button>
 
@@ -1168,7 +1212,7 @@
             <div class="col-md-3">
                 <h5>Support</h5>
                 <a href="mailto:support@africstayhms.com">Email Support</a>
-                <a href="https://wa.me/2348000000000">WhatsApp</a>
+                <a href="https://wa.me/2349152453476">WhatsApp</a>
                 <a href="#">Status Page</a>
             </div>
         </div>
@@ -1180,8 +1224,37 @@
     </div>
 </footer>
 
-<script src="{{ asset('dashboard/assets/vendors/js/vendors.min.js') }}"></script>
+<script src="{{ asset('ashboard/assets/vendors/js/vendors.min.js') }}"></script>
 <script>
+function formatNaira(n) {
+    return '₦' + Number(n).toLocaleString('en-NG');
+}
+
+function applyPricingState(period) {
+    document.querySelectorAll('.pricing-price-wrap').forEach(wrap => {
+        const strikeEl = wrap.querySelector('.price-strike');
+        const amountEl = wrap.querySelector('.price-amount');
+        const periodEl = wrap.querySelector('.price-period');
+
+        if (period === 'yearly') {
+            const full       = wrap.dataset.yearlyFull;
+            const discounted = wrap.dataset.yearlyDiscounted;
+
+            strikeEl.textContent = formatNaira(full);
+            strikeEl.classList.remove('is-hidden');
+            amountEl.textContent = formatNaira(discounted);
+            periodEl.textContent = '/year';
+        } else {
+            const monthly = wrap.dataset.monthly;
+
+            strikeEl.textContent = '';
+            strikeEl.classList.add('is-hidden');
+            amountEl.textContent = formatNaira(monthly);
+            periodEl.textContent = '/month';
+        }
+    });
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     // Accordion
     const buttons = document.querySelectorAll('.accordion-button');
@@ -1190,7 +1263,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const isActive = this.classList.contains('active');
             document.querySelectorAll('.accordion-body').forEach(body => body.style.display = 'none');
             document.querySelectorAll('.accordion-button').forEach(btn => btn.classList.remove('active'));
-            
+
             if (!isActive) {
                 this.classList.add('active');
                 this.nextElementSibling.style.display = 'block';
@@ -1203,8 +1276,12 @@ document.addEventListener('DOMContentLoaded', function() {
         btn.addEventListener('click', function() {
             document.querySelectorAll('.pricing-toggle button').forEach(b => b.classList.remove('active'));
             this.classList.add('active');
+            applyPricingState(this.dataset.toggle);
         });
     });
+
+    // Force correct state on load — guarantees Monthly never starts struck-through
+    applyPricingState('monthly');
 });
 </script>
 </body>

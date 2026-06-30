@@ -21,7 +21,7 @@
                         <p>support@africstayhms.com</p>
                     </div>
                 </a>
-                <a href="https://wa.me/2348000000000" target="_blank" class="support-option">
+                <a href="https://wa.me/2349152453476" target="_blank" class="support-option">
                     <div class="support-option-icon whatsapp">
                         <i class="feather-message-square"></i>
                     </div>
