@@ -55,7 +55,7 @@ Route::prefix('hotel/{slug}')->name('public.')->group(function () {
     Route::get('/booking/{reference}', [HotelPublicController::class, 'confirmation'])->name('booking.confirmation');
     Route::get('/booking/{reference}/check-status', [HotelPublicController::class, 'checkPaymentStatus'])
     ->name('booking.check-status');
-    
+
 });
 
 Route::post('/enterprise-inquiry', [EnterpriseInquiryController::class, 'store'])
@@ -133,7 +133,7 @@ Route::middleware(['auth:web'])->prefix('onboarding')->name('onboarding.')->grou
 | onboarding AND an active subscription before anything else loads.
 |--------------------------------------------------------------------------
 */
-Route::middleware(['auth:web', 'subscription.active', 'onboarding.complete', 'impersonation.readonly'])->group(function () {
+Route::middleware(['auth:web', 'subscription.active', 'onboarding.complete', 'impersonation.readonly', 'location.tier'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('hotel.dashboard');
 
     Route::prefix('rooms')->name('hotel.rooms.')->group(function () {
@@ -158,6 +158,7 @@ Route::middleware(['auth:web', 'subscription.active', 'onboarding.complete', 'im
         Route::post('/{booking}/check-in', [BookingController::class, 'checkIn'])->name('check-in');
         Route::post('/{booking}/check-out', [BookingController::class, 'checkOut'])->name('check-out');
         Route::post('/{booking}/cancel', [BookingController::class, 'cancel'])->name('cancel');
+        Route::post('/{booking}/request-housekeeping', [BookingController::class, 'requestHousekeeping'])->name('request-housekeeping');
         Route::get('{booking}/check-payment', [BookingController::class, 'checkPayment'])->name('check-payment');
     });
 
@@ -197,13 +198,13 @@ Route::middleware(['auth:web', 'subscription.active', 'onboarding.complete', 'im
         Route::post('/orders/{order}/status', [RoomServiceController::class, 'updateOrderStatus'])->name('orders.update');
     });
 
-    Route::prefix('staff')->name('hotel.staff.')->group(function () {
+    Route::prefix('locations/{location}/staff')->name('hotel.staff.')->group(function () {
         Route::get('/', [StaffController::class, 'index'])->name('index');
         Route::post('/invite', [StaffController::class, 'invite'])->name('invite');
         Route::post('/{staff}/deactivate', [StaffController::class, 'deactivate'])->name('deactivate');
         Route::post('/{staff}/reactivate', [StaffController::class, 'reactivate'])->name('reactivate');
     });
-
+    
     Route::prefix('locations')->name('hotel.locations.')->group(function () {
         Route::get('/', [LocationController::class, 'index'])->name('index');
         Route::get('/create', [LocationController::class, 'create'])->name('create');

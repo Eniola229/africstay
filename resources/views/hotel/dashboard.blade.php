@@ -5,8 +5,8 @@
     <li class="breadcrumb-item active">Overview</li>
 @endsection
 @section('page_actions')
-    <a href="{{ route('hotel.rooms.create') }}" class="btn btn-primary btn-sm">
-        <i class="feather-plus me-1"></i> Add Room
+    <a href="{{ route('hotel.bookings.create') }}" class="btn btn-primary btn-sm">
+        <i class="feather-plus me-1"></i>  New Walk-in Booking
     </a>
 @endsection
 
@@ -87,7 +87,10 @@
         <div class="card">
             <div class="card-header d-flex align-items-center justify-content-between">
                 <h5 class="card-title mb-0">Room Status</h5>
-                <a href="{{ route('hotel.rooms.index') }}" class="btn btn-sm btn-outline-primary">Manage Rooms</a>
+                <div class="d-flex align-items-center justify-content-between gap-2"> 
+                    <a href="{{ route('hotel.rooms.index') }}" class="btn btn-sm btn-outline-primary">Manage Rooms</a>
+                    <a href="{{ route('hotel.bookings.index') }}" class="btn btn-sm btn-outline-primary">Manage Bookings</a>
+                </div>
             </div>
             <div class="card-body">
                 <div class="row text-center g-3">

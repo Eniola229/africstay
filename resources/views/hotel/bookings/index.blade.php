@@ -20,6 +20,24 @@
     </a>
     @endforeach
 
+    <a href="{{ route('hotel.bookings.index', ['status' => 'overdue']) }}"
+       class="btn btn-sm {{ $currentStatus === 'overdue' ? 'btn-danger' : 'btn-outline-danger' }}">
+        <i class="feather-alert-triangle me-1"></i> Overdue
+        @if($overdueCount > 0)<span class="badge bg-light text-danger ms-1">{{ $overdueCount }}</span>@endif
+    </a>
+
+    <a href="{{ route('hotel.bookings.index', ['status' => 'needs_housekeeping']) }}"
+       class="btn btn-sm {{ $currentStatus === 'needs_housekeeping' ? 'btn-warning' : 'btn-outline-warning' }}">
+        <i class="feather-droplet me-1"></i> Needs Housekeeping
+        @if($needsHousekeepingCount > 0)<span class="badge bg-light text-warning ms-1">{{ $needsHousekeepingCount }}</span>@endif
+    </a>
+
+    <a href="{{ route('hotel.bookings.index', ['status' => 'maintenance']) }}"
+       class="btn btn-sm {{ $currentStatus === 'maintenance' ? 'btn-dark' : 'btn-outline-dark' }}">
+        <i class="feather-tool me-1"></i> Maintenance
+        @if($maintenanceCount > 0)<span class="badge bg-light text-dark ms-1">{{ $maintenanceCount }}</span>@endif
+    </a>
+
     <form method="GET" class="ms-auto d-flex" style="max-width:280px;">
         @if($currentStatus !== 'all')<input type="hidden" name="status" value="{{ $currentStatus }}">@endif
         <input type="text" name="search" value="{{ request('search') }}" class="form-control form-control-sm" placeholder="Search ref, guest, phone...">
@@ -36,6 +54,7 @@
                         <th class="fs-11 text-uppercase text-muted fw-semibold">Reference</th>
                         <th class="fs-11 text-uppercase text-muted fw-semibold">Guest</th>
                         <th class="fs-11 text-uppercase text-muted fw-semibold">Room</th>
+                        <th class="fs-11 text-uppercase text-muted fw-semibold">Room Status</th>
                         <th class="fs-11 text-uppercase text-muted fw-semibold">Dates</th>
                         <th class="fs-11 text-uppercase text-muted fw-semibold">Balance</th>
                         <th class="fs-11 text-uppercase text-muted fw-semibold">Status</th>
@@ -53,14 +72,35 @@
                             'cancelled' => 'bg-danger',
                             default => 'bg-secondary',
                         };
+                        $roomBadge = match($booking->room->status ?? null) {
+                            'available' => 'bg-success',
+                            'occupied' => 'bg-info text-white',
+                            'dirty' => 'bg-warning text-dark',
+                            'maintenance' => 'bg-dark',
+                            default => 'bg-secondary',
+                        };
+                        $overdue = $booking->status === 'checked_in' && $booking->check_out->isPast();
                     @endphp
-                    <tr>
+                    <tr class="{{ $overdue ? 'table-danger' : '' }}">
                         <td><a href="{{ route('hotel.bookings.show', $booking->id) }}" class="fw-semibold text-primary">{{ $booking->booking_reference }}</a></td>
                         <td>{{ $booking->guest->name }}<div class="text-muted fs-12">{{ $booking->guest->phone ?? $booking->guest->email ?? '—' }}</div></td>
                         <td>Room {{ $booking->room->room_number }}</td>
-                        <td class="fs-13">{{ $booking->check_in->format('d M') }} – {{ $booking->check_out->format('d M Y') }}</td>
+                        <td><span class="badge {{ $roomBadge }} text-capitalize">{{ str_replace('_',' ', $booking->room->status ?? '—') }}</span></td>
+                        <td class="fs-13">
+                            {{ $booking->check_in->format('d M') }} – {{ $booking->check_out->format('d M Y') }}
+                            @if($overdue)
+                                <div class="text-danger fw-semibold fs-12">
+                                    <i class="feather-clock me-1"></i> Overdue since {{ $booking->check_out->diffForHumans() }}
+                                </div>
+                            @endif
+                        </td>
                         <td class="fw-bold">₦{{ number_format($booking->balanceNaira(), 2) }}</td>
-                        <td><span class="badge {{ $badge }} text-capitalize">{{ str_replace('_',' ',$booking->status) }}</span></td>
+                        <td>
+                            <span class="badge {{ $badge }} text-capitalize">{{ str_replace('_',' ',$booking->status) }}</span>
+                            @if($overdue)
+                                <span class="badge bg-danger ms-1"><i class="feather-alert-triangle"></i> Overdue</span>
+                            @endif
+                        </td>
                         <td><a href="{{ route('hotel.bookings.show', $booking->id) }}" class="btn btn-sm btn-outline-primary">View</a></td>
                     </tr>
                     @endforeach

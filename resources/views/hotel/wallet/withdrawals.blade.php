@@ -19,7 +19,8 @@
                 <form action="{{ route('hotel.wallet.withdrawals.store') }}" method="POST" id="withdrawalForm">
                     @csrf
 
-                    {{-- Hidden — carries the resolved bank_code and account_name --}}
+                    {{-- Hidden — carries the resolved bank_name, bank_code and account_name --}}
+                    <input type="hidden" name="bank_name"     id="bank_name_hidden">
                     <input type="hidden" name="bank_code"     id="bank_code_hidden">
                     <input type="hidden" name="account_name"  id="account_name_hidden">
 
@@ -31,20 +32,21 @@
                         <small class="text-muted">Minimum ₦10,000</small>
                     </div>
 
-                    {{-- Bank selector — populated via JS --}}
-                    <div class="mb-3">
+                    {{-- Searchable bank selector --}}
+                    <div class="mb-3 position-relative">
                         <label class="form-label fw-bold">Bank</label>
-                        <select id="bankSelect"
-                                name="bank_name"
-                                class="form-select @error('bank_name') is-invalid @enderror"
-                                required
-                                disabled>
-                            <option value="">Loading banks…</option>
-                        </select>
+                        <input type="text" id="bankSearchInput"
+                               class="form-control @error('bank_name') is-invalid @enderror"
+                               placeholder="Loading banks…"
+                               autocomplete="off"
+                               disabled>
                         @error('bank_name') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         <div id="bankLoadError" class="text-danger fs-13 mt-1 d-none">
                             Could not load banks. <a href="#" onclick="loadBanks();return false;">Retry</a>
                         </div>
+                        <div id="bankDropdown"
+                             class="list-group position-absolute w-100 shadow-sm d-none"
+                             style="z-index:1000;max-height:240px;overflow-y:auto;top:100%;"></div>
                     </div>
 
                     <div class="mb-3">
@@ -54,7 +56,7 @@
                                    name="account_number"
                                    maxlength="10"
                                    class="form-control @error('account_number') is-invalid @enderror"
-                                   placeholder="10-digit NUBAN"
+                                   placeholder="10-digit Account Number"
                                    required>
                             <button type="button" class="btn btn-outline-secondary" id="verifyBtn"
                                     onclick="verifyAccount()" disabled>
@@ -118,7 +120,7 @@
                                     <div class="text-muted fs-12">{{ $w->failure_reason }}</div>
                                     @endif
                                 </td>
-                                <td class="text-muted fs-13">{{ $w->created_at->format('d M Y H:i') }}</td>
+                                <td class="text-muted fs-13">{{ $w->created_at->format('d M Y h:i A') }}</td>
                             </tr>
                             @endforeach
                         </tbody>
@@ -141,45 +143,100 @@
 <script>
 /**
  * All Flutterwave API calls are proxied through your own backend to keep the
- * secret key off the frontend. Add these two routes to web.php (hotel group):
+ * secret key off the frontend.
  *
  *   GET  /wallet/banks              → WalletController::listBanks()
  *   GET  /wallet/verify-account     → WalletController::verifyAccount()
- *
- * See the WalletController additions in the fix notes.
  */
 const BANKS_URL  = "{{ route('hotel.wallet.banks') }}";
 const VERIFY_URL = "{{ route('hotel.wallet.verify-account') }}";
 
-let banks      = [];   // [{ name, code }]
-let verified   = false;
+let banks        = [];   // [{ name, code }]
+let selectedBank = null; // { name, code } once chosen from the dropdown
+let verified     = false;
+
+const bankInput    = document.getElementById('bankSearchInput');
+const bankDropdown = document.getElementById('bankDropdown');
 
 // ── On load: fetch bank list ──────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', loadBanks);
 
 function loadBanks() {
-    const sel      = document.getElementById('bankSelect');
-    const errDiv   = document.getElementById('bankLoadError');
-    sel.disabled   = true;
-    sel.innerHTML  = '<option value="">Loading banks…</option>';
+    const errDiv = document.getElementById('bankLoadError');
+    bankInput.disabled     = true;
+    bankInput.placeholder  = 'Loading banks…';
+    bankInput.value        = '';
     errDiv.classList.add('d-none');
 
     fetch(BANKS_URL)
         .then(r => { if (!r.ok) throw new Error(); return r.json(); })
         .then(data => {
             banks = data; // [{ name, code }]
-            sel.innerHTML = '<option value="">— Select your bank —</option>'
-                + banks.map(b => `<option value="${escHtml(b.name)}" data-code="${escHtml(b.code)}">${escHtml(b.name)}</option>`).join('');
-            sel.disabled = false;
+            bankInput.disabled    = false;
+            bankInput.placeholder = 'Search for your bank…';
         })
         .catch(() => {
-            sel.innerHTML = '<option value="">Could not load banks</option>';
+            bankInput.placeholder = 'Could not load banks';
             errDiv.classList.remove('d-none');
         });
 }
 
-// ── When bank or account number changes, reset verification ───────────────────
-document.getElementById('bankSelect').addEventListener('change', resetVerification);
+// ── Searchable dropdown behaviour ──────────────────────────────────────────────
+bankInput.addEventListener('focus', () => renderBankDropdown(bankInput.value));
+bankInput.addEventListener('input', () => {
+    // Typing invalidates any previously selected bank until they pick again
+    if (selectedBank) {
+        selectedBank = null;
+        document.getElementById('bank_name_hidden').value = '';
+        document.getElementById('bank_code_hidden').value = '';
+        resetVerification();
+    }
+    renderBankDropdown(bankInput.value);
+});
+
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('#bankSearchInput') && !e.target.closest('#bankDropdown')) {
+        bankDropdown.classList.add('d-none');
+    }
+});
+
+bankDropdown.addEventListener('click', (e) => {
+    const item = e.target.closest('[data-code]');
+    if (!item) return;
+    selectBank(item.dataset.name, item.dataset.code);
+});
+
+function renderBankDropdown(filter) {
+    if (bankInput.disabled) return;
+
+    const q = filter.trim().toLowerCase();
+    const matches = q ? banks.filter(b => b.name.toLowerCase().includes(q)) : banks;
+
+    if (!matches.length) {
+        bankDropdown.innerHTML = '<div class="list-group-item text-muted fs-13">No banks found</div>';
+    } else {
+        bankDropdown.innerHTML = matches.slice(0, 200).map(b =>
+            `<button type="button" class="list-group-item list-group-item-action fs-13" data-name="${escHtml(b.name)}" data-code="${escHtml(b.code)}">${escHtml(b.name)}</button>`
+        ).join('');
+    }
+    bankDropdown.classList.remove('d-none');
+}
+
+function selectBank(name, code) {
+    selectedBank = { name, code };
+    bankInput.value = name;
+    document.getElementById('bank_name_hidden').value = name;
+    document.getElementById('bank_code_hidden').value = code;
+    bankDropdown.classList.add('d-none');
+    resetVerification();
+    updateVerifyBtnState();
+}
+
+function getSelectedBank() {
+    return selectedBank;
+}
+
+// ── When account number changes, reset verification ────────────────────────────
 document.getElementById('accountNumberInput').addEventListener('input', function () {
     resetVerification();
     // Auto-trigger verify once 10 digits are entered and a bank is selected
@@ -188,18 +245,10 @@ document.getElementById('accountNumberInput').addEventListener('input', function
     }
 });
 
-function getSelectedBank() {
-    const sel  = document.getElementById('bankSelect');
-    const opt  = sel.options[sel.selectedIndex];
-    if (!opt || !opt.dataset.code) return null;
-    return { name: opt.value, code: opt.dataset.code };
-}
-
 function resetVerification() {
     verified = false;
     document.getElementById('accountNameDisplay').value  = '';
     document.getElementById('account_name_hidden').value = '';
-    document.getElementById('bank_code_hidden').value    = '';
     document.getElementById('verifyStatus').innerHTML    = '';
     document.getElementById('verifyError').classList.add('d-none');
     document.getElementById('submitBtn').disabled = true;
@@ -220,8 +269,8 @@ function verifyAccount() {
 
     const btn        = document.getElementById('verifyBtn');
     const statusSpan = document.getElementById('verifyStatus');
-    const errDiv     = document.getElementById('verifyError');
-    const nameInput  = document.getElementById('accountNameDisplay');
+    const errDiv      = document.getElementById('verifyError');
+    const nameInput   = document.getElementById('accountNameDisplay');
 
     btn.disabled     = true;
     btn.textContent  = '…';
@@ -238,7 +287,6 @@ function verifyAccount() {
             if (data.success && data.account_name) {
                 nameInput.value = data.account_name;
                 document.getElementById('account_name_hidden').value = data.account_name;
-                document.getElementById('bank_code_hidden').value    = bank.code;
                 statusSpan.innerHTML = '<span class="text-success fw-bold">✓</span>';
                 verified = true;
                 document.getElementById('submitBtn').disabled = false;

@@ -13,12 +13,6 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
-/**
- * Post-onboarding staff management — the onboarding wizard only invites ONE
- * staff member; this is where owners/managers invite everyone after that,
- * with the tier staff-limit actually enforced (spec note #8: enforce in
- * controllers, not just the UI).
- */
 class StaffController extends Controller
 {
     public function __construct(
@@ -31,11 +25,31 @@ class StaffController extends Controller
         return Auth::user()->hotel;
     }
 
-    public function index()
+    /**
+     * Resolve the {location} route param to a Hotel the current owner actually
+     * controls — either their primary hotel, or one of its direct children.
+     * 404s otherwise, so nobody can manage another owner's hotel by guessing an id.
+     */
+    protected function resolveLocation(string $locationId): Hotel
     {
-        $hotel = $this->hotel();
+        $primary = $this->hotel();
+
+        if ($locationId === $primary->id) {
+            return $primary;
+        }
+
+        return Hotel::where('id', $locationId)
+            ->where('parent_hotel_id', $primary->id)
+            ->firstOrFail();
+    }
+
+    public function index(string $location)
+    {
+        $hotel = $this->resolveLocation($location);
 
         return view('hotel.staff.index', [
+            'location' => $hotel,
+            'allLocations' => Hotel::whereIn('id', $this->hotel()->allLocationIds())->get(),
             'staff' => $hotel->users()->where('role', '!=', 'owner')->latest()->get(),
             'staffLimit' => $hotel->staffLimit(),
             'staffCount' => $hotel->staffCount(),
@@ -43,10 +57,10 @@ class StaffController extends Controller
         ]);
     }
 
-    public function invite(Request $request)
+    public function invite(Request $request, string $location)
     {
         $this->authorizeManage();
-        $hotel = $this->hotel();
+        $hotel = $this->resolveLocation($location);
 
         if (! $hotel->canInviteMoreStaff()) {
             return back()->withErrors(['role' => "Your {$hotel->tier} tier allows up to {$hotel->staffLimit()} staff logins. Upgrade to invite more."]);
@@ -88,15 +102,15 @@ class StaffController extends Controller
         }
 
         ActivityLog::record($hotel->id, Auth::user(), 'INVITE_STAFF', 'staff', 'User', $staff->id, $staff->name,
-            Auth::user()->name." invited {$staff->name} as {$staff->role}.");
+            Auth::user()->name." invited {$staff->name} as {$staff->role} at {$hotel->name}.");
 
         return back()->with('success', "Invite sent to {$staff->name}.");
     }
 
-    public function deactivate(string $staff)
+    public function deactivate(string $location, string $staff)
     {
         $this->authorizeManage();
-        $hotel = $this->hotel();
+        $hotel = $this->resolveLocation($location);
         $staff = $hotel->users()->where('role', '!=', 'owner')->findOrFail($staff);
 
         $staff->update(['is_active' => false]);
@@ -107,10 +121,10 @@ class StaffController extends Controller
         return back()->with('success', "{$staff->name}'s account has been deactivated.");
     }
 
-    public function reactivate(string $staff)
+    public function reactivate(string $location, string $staff)
     {
         $this->authorizeManage();
-        $hotel = $this->hotel();
+        $hotel = $this->resolveLocation($location);
 
         if (! $hotel->canInviteMoreStaff()) {
             return back()->withErrors(['staff' => "Your {$hotel->tier} tier is at its staff limit. Upgrade to reactivate more staff."]);

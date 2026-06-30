@@ -11,7 +11,7 @@
     $badge = match($booking->status) {
         'pending' => 'bg-secondary', 
         'confirmed' => 'bg-info text-white', 
-        'checked_in' => 'bg-success',
+        'checked_in' => 'bg-success', 
         'checked_out' => 'bg-dark', 
         'cancelled' => 'bg-danger', 
         default => 'bg-secondary',
@@ -23,7 +23,16 @@
     $isOnlineBooking = $booking->booking_source === 'online' && $latestPayment && $latestPayment->type === 'full_payment';
     $hasVirtualAccount = $latestPayment && $latestPayment->virtual_account_number;
 @endphp
-
+@if($isOverdue)
+<div class="alert alert-danger d-flex align-items-center mb-3">
+    <i class="feather-alert-triangle me-2" style="font-size:20px;"></i>
+    <div>
+        <strong>Checkout overdue.</strong>
+        This guest's check-out was due {{ $booking->check_out->format('d M Y h:i A') }} —
+        overdue since {{ $booking->check_out->diffForHumans() }}.
+    </div>
+</div>
+@endif
 <div class="row">
     <div class="col-lg-8">
         <div class="card mb-3">
@@ -58,6 +67,36 @@
                 @endif
             </div>
         </div>
+
+        @if(in_array($booking->status, ['checked_in', 'checked_out']))
+            <div class="card mt-3">
+                <div class="card-header"><h5 class="card-title mb-0">Housekeeping</h5></div>
+                <div class="card-body">
+                    @if($pendingHousekeepingTask)
+                        <p class="text-muted fs-13 mb-2">
+                            <i class="feather-droplet me-1"></i>
+                            There's already an active housekeeping task for this room
+                            (status: <span class="badge bg-warning text-dark text-capitalize">{{ str_replace('_',' ',$pendingHousekeepingTask->status) }}</span>).
+                        </p>
+                        <a href="{{ route('hotel.housekeeping.index') }}" class="btn btn-sm btn-outline-secondary">View Housekeeping</a>
+                    @else
+                        <p class="text-muted fs-13 mb-2">
+                            @if($booking->status === 'checked_in')
+                                Need the room cleaned while the guest is still staying (e.g. multi-day stay)? Request it without checking them out.
+                            @else
+                                No active housekeeping task found for this room — request one if it was missed.
+                            @endif
+                        </p>
+                        <form action="{{ route('hotel.bookings.request-housekeeping', $booking->id) }}" method="POST">
+                            @csrf
+                            <button type="submit" class="btn btn-sm btn-warning">
+                                <i class="feather-droplet me-1"></i> Request Housekeeping
+                            </button>
+                        </form>
+                    @endif
+                </div>
+            </div>
+            @endif
 
         @if($booking->status === 'checked_in')
         <div class="card mb-3">
@@ -179,11 +218,11 @@
                 </div>
                 <div class="row mb-1">
                     <div class="col-6 text-muted">Check-in</div>
-                    <div class="col-6 text-end">{{ $booking->check_in->format('d M Y H:i') }}</div>
+                    <div class="col-6 text-end">{{ $booking->check_in->format('d M Y h:i A') }}</div>
                 </div>
                 <div class="row mb-1">
                     <div class="col-6 text-muted">Check-out</div>
-                    <div class="col-6 text-end">{{ $booking->check_out->format('d M Y H:i') }}</div>
+                    <div class="col-6 text-end">{{ $booking->check_out->format('d M Y h:i A') }}</div>
                 </div>
                 <div class="row mb-1">
                     <div class="col-6 text-muted">Duration</div>
@@ -216,7 +255,7 @@
                 
                 @if($booking->status === 'checked_out')
                 <div class="alert alert-success mt-3 mb-0">
-                    <i class="feather-check-circle me-1"></i> Checked out on {{ $booking->checked_out_at ? $booking->checked_out_at->format('d M Y H:i') : 'N/A' }}
+                    <i class="feather-check-circle me-1"></i> Checked out on {{ $booking->checked_out_at ? $booking->checked_out_at->format('d M Y h:i A') : 'N/A' }}
                 </div>
                 @endif
                 

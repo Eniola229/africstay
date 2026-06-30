@@ -11,6 +11,12 @@
                 <a href="javascript:void(0);" id="menu-mini-button"><i class="feather-align-left"></i></a>
                 <a href="javascript:void(0);" id="menu-expend-button" style="display:none;"><i class="feather-arrow-right"></i></a>
             </div>
+            <div class="nxl-h-item d-flex align-items-center me-2">
+                <span class="fw-bold text-dark d-flex align-items-center" style="font-size:15px;line-height:1;">
+                   
+                    {{ auth()->user()->hotel->name ?? 'AfricStay' }}
+                </span>
+            </div>
             @if(auth()->user()->hotel && auth()->user()->hotel->subscription_status === 'past_due')
             <span class="badge bg-warning text-dark d-none d-md-inline-flex align-items-center gap-1">
                 <i class="feather-alert-triangle" style="font-size:12px;"></i>

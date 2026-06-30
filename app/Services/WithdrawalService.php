@@ -9,9 +9,9 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /**
- * Owner-initiated withdrawal to their bank account. Flutterwave Transfer
- * API first, Paystack Transfer API as fallback — same provider-fallback
- * rule as everywhere else in the spec.
+ * Owner-initiated withdrawal to their bank account, via Flutterwave's
+ * Transfer API only (no Paystack fallback — a failed transfer is reported
+ * to the user as failed, not silently retried on a different provider).
  *
  * Money is deducted from the wallet immediately on success; reverted if the
  * transfer call itself fails outright. A transfer that's accepted but later
@@ -54,14 +54,15 @@ class WithdrawalService
         $result = $this->tryFlutterwaveTransfer($withdrawal);
 
         if (! $result) {
-            $withdrawal->update(['provider' => 'paystack']);
-            $result = $this->tryPaystackTransfer($withdrawal);
-        }
-
-        if (! $result) {
             $hotel->increment('wallet_balance', $amountKobo); // revert
-            $withdrawal->update(['status' => 'failed', 'failure_reason' => 'Both payment providers rejected the transfer.']);
-            return $withdrawal;
+            $withdrawal->update([
+                'status' => 'failed',
+                // tryFlutterwaveTransfer() already wrote the real reason onto the
+                // withdrawal when it failed — fall back to a generic message only
+                // if for some reason it didn't get set (e.g. an unexpected exception).
+                'failure_reason' => $withdrawal->fresh()->failure_reason ?: 'Flutterwave rejected the transfer.',
+            ]);
+            return $withdrawal->fresh();
         }
 
         $withdrawal->update([
@@ -76,6 +77,7 @@ class WithdrawalService
     {
         $key = config('services.flutterwave.secret_key');
         if (blank($key)) {
+            $withdrawal->update(['failure_reason' => 'Flutterwave is not configured (missing secret key).']);
             return null;
         }
 
@@ -93,13 +95,28 @@ class WithdrawalService
                 return ['reference' => (string) $response->json('data.id')];
             }
 
-            Log::warning('Flutterwave transfer failed — falling back to Paystack.', ['withdrawal' => $withdrawal->id]);
+            $message = $response->json('message') ?? 'Flutterwave rejected the transfer.';
+
+            Log::warning('Flutterwave transfer failed.', [
+                'withdrawal' => $withdrawal->id,
+                'http_status' => $response->status(),
+                'body' => $response->json() ?? $response->body(),
+            ]);
+
+            $withdrawal->update(['failure_reason' => $message]);
+
             return null;
         } catch (\Throwable $e) {
-            Log::error('Flutterwave transfer exception: '.$e->getMessage());
+            Log::error('Flutterwave transfer exception: '.$e->getMessage(), ['withdrawal' => $withdrawal->id]);
+            $withdrawal->update(['failure_reason' => 'Flutterwave transfer request failed: '.$e->getMessage()]);
             return null;
         }
     }
+
+    /**
+     * NOT currently called — Flutterwave-only per current requirements.
+     * Left in place in case provider fallback is reinstated later.
+     */
 
     protected function tryPaystackTransfer(Withdrawal $withdrawal): ?array
     {

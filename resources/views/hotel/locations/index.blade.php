@@ -37,8 +37,7 @@
 
 <div class="alert alert-light border fs-13">
     <i class="feather-info me-2"></i>
-    This is an aggregated read-only view across your locations. Day-to-day management of a child
-    location's own rooms/bookings is on the roadmap — for now each location's data is tracked
-    separately under the hood.
+    This is an aggregated read-only view across your locations. for now each location's data is tracked
+    separately under the hood. Kindly click on <strong><a href="{{ route('hotel.staff.index', auth()->user()->hotel) }}" class="nxl-link">Staff</a></strong> to add staff's to any of your locations
 </div>
 @endsection

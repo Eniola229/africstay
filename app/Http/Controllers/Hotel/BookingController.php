@@ -40,11 +40,29 @@ class BookingController extends Controller
 
     public function index(Request $request)
     {
-        $query = $this->hotel()->bookings()->with(['room', 'guest', 'paymentAccount'])->latest();
+        $hotel = $this->hotel();
+        $status = $request->query('status', 'all');
 
-        if ($status = $request->query('status')) {
-            $query->where('status', $status);
+        $query = $hotel->bookings()->with(['room', 'guest', 'paymentAccount'])->latest();
+
+        switch ($status) {
+            case 'overdue':
+                $query->where('status', 'checked_in')->where('check_out', '<', now());
+                break;
+            case 'needs_housekeeping':
+                $query->whereHas('room', fn ($r) => $r->where('status', 'dirty'));
+                break;
+            case 'maintenance':
+                $query->whereHas('room', fn ($r) => $r->where('status', 'maintenance'));
+                break;
+            case 'all':
+                // no extra constraint
+                break;
+            default:
+                $query->where('status', $status);
+                break;
         }
+
         if ($search = $request->query('search')) {
             $query->where(function ($q) use ($search) {
                 $q->where('booking_reference', 'like', "%{$search}%")
@@ -54,7 +72,10 @@ class BookingController extends Controller
 
         return view('hotel.bookings.index', [
             'bookings' => $query->paginate(20)->withQueryString(),
-            'currentStatus' => $request->query('status', 'all'),
+            'currentStatus' => $status,
+            'overdueCount' => $hotel->bookings()->where('status', 'checked_in')->where('check_out', '<', now())->count(),
+            'needsHousekeepingCount' => $hotel->bookings()->whereHas('room', fn ($r) => $r->where('status', 'dirty'))->count(),
+            'maintenanceCount' => $hotel->bookings()->whereHas('room', fn ($r) => $r->where('status', 'maintenance'))->count(),
         ]);
     }
 
@@ -181,8 +202,19 @@ class BookingController extends Controller
             'roomServiceOrders.item',
             'paymentAccount'
         ])->findOrFail($booking);
-        
-        return view('hotel.bookings.show', ['booking' => $booking]);
+
+        $pendingHousekeepingTask = HousekeepingTask::where('room_id', $booking->room_id)
+            ->where('status', '!=', 'verified')
+            ->latest()
+            ->first();
+
+        $isOverdue = $booking->status === 'checked_in' && $booking->check_out->isPast();
+
+        return view('hotel.bookings.show', [
+            'booking' => $booking,
+            'pendingHousekeepingTask' => $pendingHousekeepingTask,
+            'isOverdue' => $isOverdue,
+        ]);
     }
 
     public function checkIn(Request $request, string $booking)
@@ -278,7 +310,7 @@ class BookingController extends Controller
             $booking->room->update(['status' => 'dirty']);
         });
 
-        $this->createHousekeepingTask($booking);
+        $this->createHousekeepingTask($booking, 'checkout');
 
         $overrideNote = $request->boolean('manager_override')
             ? " Checked out with manager override (balance ₦".number_format($booking->balanceNaira(), 2)."): {$request->input('override_reason')}."
@@ -343,6 +375,45 @@ class BookingController extends Controller
         return redirect()->route('hotel.bookings.index')->with('success', 'Booking cancelled successfully. Room is now available.');
     }
 
+    /**
+     * Manually request a housekeeping task for a booking's room, even if the guest
+     * has not checked out yet (e.g. mid-stay cleaning for multi-day guests). Also
+     * usable post-checkout as a safety net if a task wasn't auto-created.
+     */
+    public function requestHousekeeping(Request $request, string $booking)
+    {
+        $this->authorizeBookingStaff();
+        $hotel   = $this->hotel();
+        $booking = $hotel->bookings()->with(['room', 'guest'])->findOrFail($booking);
+
+        if (! $booking->room) {
+            return back()->withErrors(['booking' => 'This booking has no room attached.']);
+        }
+
+        if (! in_array($booking->status, ['checked_in', 'checked_out'])) {
+            return back()->withErrors(['booking' => 'Housekeeping can only be requested for in-house or checked-out bookings.']);
+        }
+
+        $hasActiveTask = HousekeepingTask::where('room_id', $booking->room_id)
+            ->where('status', '!=', 'verified')
+            ->exists();
+
+        if ($hasActiveTask) {
+            return back()->withErrors(['booking' => "There is already an active housekeeping task for Room {$booking->room->room_number}."]);
+        }
+
+        $triggeredBy = $booking->status === 'checked_in' ? 'manual' : 'checkout';
+
+        $this->createHousekeepingTask($booking, $triggeredBy);
+
+        ActivityLog::record(
+            $hotel->id, Auth::user(), 'REQUEST_HOUSEKEEPING', 'booking', 'Booking', $booking->id, $booking->booking_reference,
+            Auth::user()->name." requested housekeeping for Room {$booking->room->room_number} (booking {$booking->booking_reference} is {$booking->status})."
+        );
+
+        return back()->with('success', "Housekeeping requested for Room {$booking->room->room_number}.");
+    }
+
     protected function generateReference(Hotel $hotel): string
     {
         $shortCode = Str::upper(Str::substr(preg_replace('/[^A-Za-z]/', '', $hotel->name), 0, 3)) ?: 'AFS';
@@ -371,7 +442,14 @@ class BookingController extends Controller
         return [$units, $units * $pricePerUnit];
     }
 
-    protected function createHousekeepingTask(Booking $booking): void
+    /**
+     * Creates a housekeeping task for the booking's room. $triggeredBy records why the
+     * task was created — 'checkout' (automatic, on guest checkout) or 'mid_stay_request'
+     * (manual, while guest is still in-house). Does NOT change room status; the caller
+     * is responsible for that (checkout sets the room to 'dirty', mid-stay requests
+     * intentionally leave the room as 'occupied' since the guest is still there).
+     */
+    protected function createHousekeepingTask(Booking $booking, string $triggeredBy = 'checkout'): void
     {
         $hotel = $booking->hotel;
 
@@ -386,13 +464,17 @@ class BookingController extends Controller
             'room_id'     => $booking->room_id,
             'hotel_id'    => $hotel->id,
             'assigned_to' => $housekeeper?->id,
-            'triggered_by'=> 'checkout',
+            'triggered_by'=> $triggeredBy,
             'status'      => 'pending',
             'checklist'   => HousekeepingTask::defaultChecklistFor($booking->room->type),
         ]);
 
+        $reason = $triggeredBy === 'checkout'
+            ? 'is ready for cleaning'
+            : 'needs housekeeping (guest currently in-house)';
+
         if ($housekeeper && $housekeeper->phone) {
-            $this->sms->send($housekeeper->phone, "Room {$booking->room->room_number} is ready for cleaning at {$hotel->name}.");
+            $this->sms->send($housekeeper->phone, "Room {$booking->room->room_number} {$reason} at {$hotel->name}.");
         } elseif (! $housekeeper) {
             $manager = $hotel->users()->whereIn('role', ['manager', 'owner'])->first();
             if ($manager?->phone) {

@@ -233,4 +233,11 @@ class Hotel extends Model
     {
         return in_array($this->subscription_status, ['active', 'past_due']);
     }
+
+    public function effectiveSubscriptionStatus(): string
+    {
+        return $this->isPrimaryLocation()
+            ? $this->subscription_status
+            : $this->parentHotel->subscription_status;
+    }
 }

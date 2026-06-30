@@ -28,6 +28,17 @@
                 @php $role = auth()->user()->role; @endphp
 
                 @if(in_array($role, ['owner','manager','receptionist']))
+                 <li class="nxl-item nxl-hasmenu {{ request()->routeIs('hotel.bookings*') ? 'active' : '' }}">
+                    <a href="javascript:void(0);" class="nxl-link">
+                        <span class="nxl-micon"><i class="feather-calendar"></i></span>
+                        <span class="nxl-mtext">Bookings</span>
+                        <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
+                    </a>
+                    <ul class="nxl-submenu">
+                        <li class="nxl-item"><a class="nxl-link" href="{{ route('hotel.bookings.index') }}">All Bookings</a></li>
+                        <li class="nxl-item"><a class="nxl-link" href="{{ route('hotel.bookings.create') }}">New Walk-in Booking</a></li>
+                    </ul>
+                </li>
                 <li class="nxl-item nxl-hasmenu {{ request()->routeIs('hotel.rooms*') ? 'active' : '' }}">
                     <a href="javascript:void(0);" class="nxl-link">
                         <span class="nxl-micon"><i class="feather-home"></i></span>
@@ -37,18 +48,6 @@
                     <ul class="nxl-submenu">
                         <li class="nxl-item"><a class="nxl-link" href="{{ route('hotel.rooms.index') }}">Manage Rooms</a></li>
                         <li class="nxl-item"><a class="nxl-link" href="{{ route('hotel.rooms.create') }}">Add Room</a></li>
-                    </ul>
-                </li>
-
-                <li class="nxl-item nxl-hasmenu {{ request()->routeIs('hotel.bookings*') ? 'active' : '' }}">
-                    <a href="javascript:void(0);" class="nxl-link">
-                        <span class="nxl-micon"><i class="feather-calendar"></i></span>
-                        <span class="nxl-mtext">Bookings</span>
-                        <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
-                    </a>
-                    <ul class="nxl-submenu">
-                        <li class="nxl-item"><a class="nxl-link" href="{{ route('hotel.bookings.index') }}">All Bookings</a></li>
-                        <li class="nxl-item"><a class="nxl-link" href="{{ route('hotel.bookings.create') }}">New Walk-in Booking</a></li>
                     </ul>
                 </li>
                 @endif
@@ -96,7 +95,7 @@
 
                 @if(in_array($role, ['owner','manager']))
                 <li class="nxl-item {{ request()->routeIs('hotel.staff*') ? 'active' : '' }}">
-                    <a href="{{ route('hotel.staff.index') }}" class="nxl-link">
+                    <a href="{{ route('hotel.staff.index', auth()->user()->hotel) }}" class="nxl-link">
                         <span class="nxl-micon"><i class="feather-users"></i></span>
                         <span class="nxl-mtext">Staff</span>
                     </a>

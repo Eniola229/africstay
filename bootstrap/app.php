@@ -5,6 +5,7 @@ use App\Http\Middleware\EnsureSubscriptionActive;
 use App\Http\Middleware\ImpersonationReadOnly;
 use App\Http\Middleware\RedirectIfHotelAuthenticated;
 use App\Http\Middleware\RedirectIfPlatformAuthenticated;
+use App\Http\Middleware\EnsureLocationTierAccess;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -32,6 +33,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'onboarding.complete' => EnsureOnboardingComplete::class,
             'subscription.active' => EnsureSubscriptionActive::class,
             'impersonation.readonly' => ImpersonationReadOnly::class,
+            'location.tier' => EnsureLocationTierAccess::class,
         ]);
 
         // Flutterwave/Paystack POST here without a CSRF token — verified by

@@ -37,7 +37,7 @@ class CheckoutDueAlertCommand extends Command
         $due = Booking::with(['room', 'guest', 'hotel.users'])
             ->where('status', 'checked_in')
             ->where('checkout_alert_sent', false)
-            ->whereBetween('check_out', [$now, $threshold])
+            ->where('check_out', '<=', $threshold) 
             ->get();
 
         if ($due->isEmpty()) {

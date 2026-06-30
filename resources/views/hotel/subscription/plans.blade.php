@@ -10,6 +10,17 @@
         grid-template-columns: repeat(3, 1fr);
     }
 }
+.current-plan-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: #2ECC71;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+}
 </style>
 <div class="auth-main" style="display:block; padding:20px 15px;">
 
@@ -19,12 +30,12 @@
             <img src="{{ asset('ashboard/assets/images/favicon.png') }}" style="height:40px;" alt="AfricStay">
             <h2 class="fw-bold mt-3 mb-2" style="font-size: clamp(20px, 5vw, 28px);">Choose a plan for {{ $hotel->name }}</h2>
             <p class="text-muted" style="font-size: clamp(13px, 4vw, 15px);">
-                @if($hotel->subscription_status === 'pending_payment')
+                @if($subscriptionStatus === 'pending_payment')
                     One more step — activate your account to unlock rooms, bookings and payments.
-                @else
-                    Your current plan: <strong class="text-capitalize">{{ $hotel->tier }}</strong>
-                    @if($hotel->subscription_ends_at)
-                        — renews/expires {{ $hotel->subscription_ends_at->format('jS M Y') }}
+                @elseif($subscriptionStatus === 'active')
+                    Your current plan: <strong class="text-capitalize">{{ $currentTier }}</strong>
+                    @if($subscriptionEndsAt)
+                        — renews/expires {{ $subscriptionEndsAt->format('jS M Y') }}
                     @endif
                 @endif
             </p>
@@ -47,12 +58,35 @@
                 $feeLabels = ['starter' => '1.5%', 'growth' => '1.0%', 'pro' => '0.75%'];
                 $roomLabels = ['starter' => 'Up to 15 rooms', 'growth' => 'Up to 50 rooms', 'pro' => 'Unlimited rooms'];
                 $highlight = $tierKey === 'growth';
+                
+                // Tier hierarchy for upgrades
+                $tierOrder = ['starter' => 0, 'growth' => 1, 'pro' => 2];
+                $isCurrentPlan = $subscriptionStatus === 'active' && $currentTier === $tierKey;
+                $isUpgrade = $subscriptionStatus === 'active' && $currentTier && $tierOrder[$tierKey] > $tierOrder[$currentTier];
+                $isDowngrade = $subscriptionStatus === 'active' && $currentTier && $tierOrder[$tierKey] < $tierOrder[$currentTier];
+                
+                // Determine button text and state
+                if ($isCurrentPlan) {
+                    $buttonText = 'Current Plan - Renew';
+                    $buttonState = 'current';
+                } elseif ($isUpgrade) {
+                    $buttonText = 'Upgrade to ' . $labels[$tierKey];
+                    $buttonState = 'upgrade';
+                } elseif ($isDowngrade) {
+                    $buttonText = 'Downgrade to ' . $labels[$tierKey];
+                    $buttonState = 'downgrade';
+                } else {
+                    $buttonText = 'Choose ' . $labels[$tierKey];
+                    $buttonState = 'choose';
+                }
             @endphp
-            <div style="border: 2px solid {{ $highlight ? '#2ECC71' : '#e5e7eb' }}; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; {{ $highlight ? 'box-shadow: 0 10px 30px rgba(46, 204, 113, 0.2);' : '' }}">
-                @if($highlight)
+            <div style="border: 2px solid {{ $highlight && !$isCurrentPlan ? '#2ECC71' : ($isCurrentPlan ? '#2ECC71' : '#e5e7eb') }}; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; position: relative; {{ ($highlight && !$isCurrentPlan) || $isCurrentPlan ? 'box-shadow: 0 10px 30px rgba(46, 204, 113, 0.2);' : '' }}">
+                @if($highlight && !$isCurrentPlan)
                 <div class="text-center text-white fw-bold py-2" style="background: linear-gradient(135deg, #2ECC71, #27AE60); font-size: 12px; letter-spacing: 1px;">
                     MOST POPULAR
                 </div>
+                @elseif($isCurrentPlan)
+                <div class="current-plan-badge">✓ ACTIVE</div>
                 @endif
                 <div style="padding: 24px 20px; text-align: center; flex: 1; display: flex; flex-direction: column;">
                     <h4 class="fw-bold" style="color: #0f172a; margin-bottom: 16px; font-size: clamp(18px, 5vw, 20px);">{{ $labels[$tierKey] }}</h4>
@@ -111,8 +145,19 @@
                     <form action="{{ route('hotel.subscription.checkout.start') }}" method="GET" class="plan-form" style="width: 100%;">
                         <input type="hidden" name="tier" value="{{ $tierKey }}">
                         <input type="hidden" name="billing_cycle" class="billing-cycle-input" value="monthly">
-                        <button type="submit" style="width: 100%; background: {{ $highlight ? '#2ECC71' : 'white' }}; color: {{ $highlight ? 'white' : '#2ECC71' }}; border: 2px solid #2ECC71; font-weight: 600; padding: 14px 20px; border-radius: 8px; cursor: pointer; font-size: 14px; transition: all 0.3s;">
-                            Choose {{ $labels[$tierKey] }}
+                        <button type="submit" 
+                            style="width: 100%; 
+                                    background: {{ $isCurrentPlan ? '#E8F8F5' : ($highlight ? '#2ECC71' : 'white') }}; 
+                                    color: {{ $isCurrentPlan ? '#2ECC71' : ($highlight ? 'white' : '#2ECC71') }}; 
+                                    border: 2px solid #2ECC71; 
+                                    font-weight: 600; 
+                                    padding: 14px 20px; 
+                                    border-radius: 8px; 
+                                    cursor: pointer; 
+                                    font-size: 14px; 
+                                    transition: all 0.3s;"
+                            {{ $isDowngrade ? 'disabled' : '' }}>
+                            {{ $buttonText }}
                         </button>
                     </form>
                 </div>

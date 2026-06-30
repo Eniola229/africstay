@@ -27,6 +27,13 @@
     </form>
 </div>
 @endif
+@if(isset($locationReadOnly) && $locationReadOnly)
+<div class="alert alert-warning d-flex justify-content-between align-items-center mb-3">
+    <span><i class="feather-lock me-2"></i>{{ $locationReadOnlyMessage }}</span>
+    <a href="{{ route('hotel.subscription.plans') }}" class="btn btn-sm btn-dark">Upgrade to Pro</a>
+</div>
+@endif
+
 
 @include('layouts.partials.hotel-nav')
 @include('layouts.partials.hotel-header')

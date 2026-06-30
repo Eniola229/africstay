@@ -21,6 +21,11 @@ use Illuminate\Support\Str;
  *  2. The hotel owner is redirected to that link to pay.
  *  3. The provider's webhook hits FlutterwaveWebhookController / PaystackWebhookController,
  *     which call confirmPayment() — idempotent on payment_reference.
+ * 
+ * Renewal/Upgrade logic:
+ *  - If user renews or upgrades an active subscription, the new period starts from
+ *    when the current subscription ends (preserving unused days + adding new period).
+ *  - If the current subscription is already expired or nonexistent, starts from now().
  */
 class SubscriptionBillingService
 {
@@ -143,6 +148,9 @@ class SubscriptionBillingService
     /**
      * Called by both webhook controllers once payment is confirmed.
      * Idempotent: if this reference was already confirmed, does nothing further.
+     * 
+     * For renewals/upgrades: if the hotel has an active subscription that hasn't expired yet,
+     * the new subscription period extends from that end date. Otherwise, it starts from now().
      */
     public function confirmPayment(string $paymentReference, string $providerReference): void
     {
@@ -161,8 +169,23 @@ class SubscriptionBillingService
         $subscription = $payment->subscription;
         $hotel = $payment->hotel;
 
-        $startsAt = now();
-        $endsAt = $payment->billing_cycle === 'yearly' ? $startsAt->copy()->addYear() : $startsAt->copy()->addMonth();
+        // Determine the start date for the new subscription.
+        // If there's an active subscription that hasn't expired, extend from its end date.
+        // Otherwise, start from now.
+        $currentActiveSubscription = $hotel->subscriptions()
+            ->where('is_active', true)
+            ->where('ends_at', '>', now())
+            ->first();
+
+        if ($currentActiveSubscription) {
+            $startsAt = $currentActiveSubscription->ends_at;
+        } else {
+            $startsAt = now();
+        }
+
+        $endsAt = $payment->billing_cycle === 'yearly' 
+            ? $startsAt->copy()->addYear() 
+            : $startsAt->copy()->addMonth();
 
         // Deactivate any previously-active subscription for this hotel before activating the new one.
         $hotel->subscriptions()->where('is_active', true)->update(['is_active' => false]);
