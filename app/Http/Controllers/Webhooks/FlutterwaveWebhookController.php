@@ -9,31 +9,36 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Str;
+use App\Services\WithdrawalService;
 
 class FlutterwaveWebhookController extends Controller
 {
     public function __construct(
         protected SubscriptionBillingService $subscriptionBilling,
         protected GuestPaymentConfirmationService $guestPayments,
+        protected WithdrawalService $withdrawals,
     ) {}
-
+    
     public function handle(Request $request)
     {
         $signature = $request->header('verif-hash');
         $expected = config('services.flutterwave.webhook_secret_hash');
-
         if (blank($expected) || $signature !== $expected) {
             Log::warning('Flutterwave webhook signature mismatch — ignored.');
             return Response::make('', 401);
         }
 
         $payload = $request->all();
+        $event = $payload['event'] ?? null;
 
-        // Flutterwave sends different structures depending on payment type:
-        // - Card/standard payments: { data: { status, tx_ref, id } }
-        // - Bank transfer events:   { status, txRef, id } (flat, camelCase)
-        $status    = $payload['data']['status'] ?? $payload['status'] ?? null;
-        $reference = $payload['data']['tx_ref'] ?? $payload['txRef']  ?? null;
+        if ($event === 'transfer.completed') {
+            $this->handleTransfer($payload);
+            return Response::make('', 200);
+        }
+
+        // existing charge/payment handling
+        $status      = $payload['data']['status'] ?? $payload['status'] ?? null;
+        $reference   = $payload['data']['tx_ref'] ?? $payload['txRef']  ?? null;
         $providerRef = (string) ($payload['data']['id'] ?? $payload['id'] ?? '');
 
         if ($status === 'successful' && $reference) {
@@ -41,6 +46,24 @@ class FlutterwaveWebhookController extends Controller
         }
 
         return Response::make('', 200);
+    }
+
+    protected function handleTransfer(array $payload): void
+    {
+        $reference   = $payload['data']['reference'] ?? null;
+        $status      = strtoupper($payload['data']['status'] ?? '');
+        $providerRef = (string) ($payload['data']['id'] ?? '');
+
+        if (! $reference || ! Str::startsWith($reference, 'AFS-WD-')) {
+            Log::warning('Flutterwave transfer webhook with unrecognised reference.', ['reference' => $reference]);
+            return;
+        }
+
+        if ($status === 'SUCCESSFUL') {
+            $this->withdrawals->confirmCompleted($reference, $providerRef);
+        } elseif ($status === 'FAILED') {
+            $this->withdrawals->confirmFailed($reference, $payload['data']['complete_message'] ?? 'Transfer failed at provider.');
+        }
     }
 
     /**

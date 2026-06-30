@@ -160,17 +160,128 @@ class WithdrawalService
         }
     }
 
+    public function confirmCompleted(string $reference, string $providerRef): void
+    {
+        $withdrawal = Withdrawal::where('reference', $reference)->first();
+        if (! $withdrawal || $withdrawal->status !== 'processing') {
+            return; // already handled, or not ours
+        }
+        $this->markCompleted($withdrawal);
+    }
+
+    public function confirmFailed(string $reference, string $reason): void
+    {
+        $withdrawal = Withdrawal::where('reference', $reference)->first();
+        if (! $withdrawal || $withdrawal->status !== 'processing') {
+            return;
+        }
+        $withdrawal->hotel->increment('wallet_balance', $withdrawal->amount); // revert
+        $withdrawal->update(['status' => 'failed', 'failure_reason' => $reason]);
+    }
+
     public function markCompleted(Withdrawal $withdrawal): void
     {
         $withdrawal->update(['status' => 'completed', 'processed_at' => now()]);
 
-        $hotel = $withdrawal->hotel;
+        $hotel = $withdrawal->fresh()->hotel;
         $owner = $hotel->owner;
-        $msg = "Your withdrawal of ₦".number_format($withdrawal->amountNaira(), 2)." to {$withdrawal->account_number} ({$withdrawal->bank_name}) is complete.";
+        $fallbackMsg = "Your withdrawal of ₦".number_format($withdrawal->amountNaira(), 2)." to {$withdrawal->account_number} ({$withdrawal->bank_name}) is complete.";
 
-        $this->notify->notifyHotel($hotel, 'withdrawal_completed', $msg,
-            $owner?->email ? 'Withdrawal completed' : null,
-            $owner?->email ? "<p>{$msg}</p>" : null
+        $this->notify->notifyHotel($hotel, 'withdrawal_completed', $fallbackMsg,
+            $owner?->email ? 'Your withdrawal is complete' : null,
+            $owner?->email ? $this->emailWithdrawalCompleted($hotel, $withdrawal) : null
         );
+    }
+
+    // ─── HOTEL BRANDED EMAIL TEMPLATE ───────────────────────────────────────────
+    // Mirrors BookingController's emailBase()/table styling so every guest- and
+    // owner-facing email looks consistent across the platform.
+
+    protected function emailBase(string $preheader, string $body, string $hotelName): string
+    {
+        return <<<HTML
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{$hotelName}</title>
+<style>
+    body{margin:0;padding:0;background:#f0f5f0;font-family:'Helvetica Neue',Arial,sans-serif;color:#2d2d2d;}
+    .wrapper{max-width:600px;margin:32px auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 16px rgba(10,54,34,0.08);}
+    .header{background:#0a3622;padding:32px 40px 28px;text-align:center;}
+    .header h1{color:#ffffff;margin:0;font-size:24px;font-weight:700;letter-spacing:0.5px;}
+    .header p{color:rgba(255,255,255,0.8);margin:6px 0 0;font-size:13px;font-weight:300;letter-spacing:0.3px;}
+    .body{padding:36px 40px 28px;}
+    .body p{margin:0 0 14px;line-height:1.7;font-size:15px;color:#2d2d2d;}
+    .body h2{font-size:20px;margin:0 0 16px;color:#0a3622;font-weight:600;}
+    .divider{border:none;border-top:1px solid #e8efe8;margin:24px 0;}
+    .footer{background:#f8faf8;padding:20px 40px;text-align:center;border-top:1px solid #e8efe8;}
+    .footer p{color:#6a8a6a;font-size:12px;margin:4px 0;line-height:1.6;}
+    .footer a{color:#0a3622;text-decoration:underline;}
+</style>
+</head>
+<body>
+<span style="display:none;max-height:0;overflow:hidden;">{$preheader}</span>
+<div class="wrapper">
+    <div class="header">
+        <h1>{$hotelName}</h1>
+        <p>Powered by AfricStay</p>
+    </div>
+    <div class="body">
+        {$body}
+    </div>
+    <div class="footer">
+        <p>{$hotelName} — Guest experience</p>
+        <p><a href="mailto:support@africstayhms.com">support@africstayhms.com</a></p>
+    </div>
+</div>
+</body>
+</html>
+HTML;
+    }
+
+    protected function emailWithdrawalCompleted(Hotel $hotel, Withdrawal $withdrawal): string
+    {
+        $body = "
+        <h2>✅ Withdrawal completed</h2>
+
+        <p style='margin:0 0 16px;font-size:15px;line-height:1.7;color:#2d2d2d;'>Hi there,</p>
+
+        <p style='margin:0 0 16px;font-size:15px;line-height:1.7;color:#2d2d2d;'>Your withdrawal from <strong style='color:#0a3622;'>{$hotel->name}</strong>'s wallet has been processed successfully. Here are the details:</p>
+
+        <table style='width:100%;border-collapse:collapse;margin:20px 0;background:#f8faf8;border-radius:8px;overflow:hidden;'>
+            <tr style='border-bottom:1px solid #e8efe8;'>
+                <td style='padding:12px 16px;font-size:14px;color:#4a6a4a;font-weight:600;width:45%;'>Reference</td>
+                <td style='padding:12px 16px;font-size:14px;color:#0a3622;font-weight:600;'>{$withdrawal->reference}</td>
+            </tr>
+            <tr style='border-bottom:1px solid #e8efe8;'>
+                <td style='padding:12px 16px;font-size:14px;color:#4a6a4a;font-weight:600;'>Amount</td>
+                <td style='padding:12px 16px;font-size:14px;color:#0a3622;font-weight:600;'>₦".number_format($withdrawal->amountNaira(), 2)."</td>
+            </tr>
+            <tr style='border-bottom:1px solid #e8efe8;'>
+                <td style='padding:12px 16px;font-size:14px;color:#4a6a4a;font-weight:600;'>Bank</td>
+                <td style='padding:12px 16px;font-size:14px;color:#0a3622;font-weight:500;'>{$withdrawal->bank_name}</td>
+            </tr>
+            <tr style='border-bottom:1px solid #e8efe8;'>
+                <td style='padding:12px 16px;font-size:14px;color:#4a6a4a;font-weight:600;'>Account number</td>
+                <td style='padding:12px 16px;font-size:14px;color:#0a3622;font-weight:500;'>{$withdrawal->account_number}</td>
+            </tr>
+            <tr style='border-bottom:1px solid #e8efe8;'>
+                <td style='padding:12px 16px;font-size:14px;color:#4a6a4a;font-weight:600;'>Account name</td>
+                <td style='padding:12px 16px;font-size:14px;color:#0a3622;font-weight:500;'>{$withdrawal->account_name}</td>
+            </tr>
+            <tr>
+                <td style='padding:12px 16px;font-size:14px;color:#4a6a4a;font-weight:600;'>Processed at</td>
+                <td style='padding:12px 16px;font-size:14px;color:#0a3622;font-weight:500;'>".$withdrawal->processed_at->format('d M Y h:i A')."</td>
+            </tr>
+        </table>
+
+        <hr class='divider'>
+
+        <p style='font-size:13px;color:#6a8a6a;margin:0;'>It may take a short while to reflect in your bank account depending on your bank's processing time.</p>
+        <p style='font-size:13px;color:#6a8a6a;margin:4px 0 0;'>Questions? <a href='mailto:support@africstayhms.com' style='color:#0a3622;text-decoration:underline;'>support@africstayhms.com</a></p>";
+
+        return $this->emailBase("Your withdrawal of ₦".number_format($withdrawal->amountNaira(), 2)." is complete", $body, $hotel->name);
     }
 }
