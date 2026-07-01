@@ -39,6 +39,8 @@ use Illuminate\Support\Facades\Route;
 Route::view('/', 'welcome')->name('home');
 Route::view('/terms-of-service', 'legal.terms-of-service')->name('legal.terms');
 Route::view('privacy-policy', 'legal.privacy-policy')->name('legal.privacy');
+Route::get('/sitemap.xml', [\App\Http\Controllers\Public\SitemapController::class, 'index'])
+    ->name('sitemap');
 
 /*
 |--------------------------------------------------------------------------
@@ -47,6 +49,8 @@ Route::view('privacy-policy', 'legal.privacy-policy')->name('legal.privacy');
 | writes (guest self-booking).
 |--------------------------------------------------------------------------
 */
+Route::get('/hotels', [\App\Http\Controllers\Public\HotelPublicController::class, 'directory'])
+    ->name('public.hotels.index');
 Route::prefix('hotel/{slug}')->name('public.')->group(function () {
     Route::get('/', [HotelPublicController::class, 'show'])->name('hotel.show');
     Route::get('/availability', [HotelPublicController::class, 'checkAvailability'])->name('booking.availability');
@@ -55,6 +59,7 @@ Route::prefix('hotel/{slug}')->name('public.')->group(function () {
     Route::get('/booking/{reference}', [HotelPublicController::class, 'confirmation'])->name('booking.confirmation');
     Route::get('/booking/{reference}/check-status', [HotelPublicController::class, 'checkPaymentStatus'])
     ->name('booking.check-status');
+
 
 });
 

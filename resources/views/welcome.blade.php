@@ -789,7 +789,7 @@
                     </h1>
 
                     <p class="hero-subtitle">
-                        AfricStay is the all-in-one booking, payments and management system for small and mid-sized hotels and guesthouses. No more cash leakage, double bookings, or wondering what your hotel actually made last week.
+                        AfricStay is the all-in-one booking, payments and management system for small, mid-sized and large hotels and guesthouses. No more cash leakage, double bookings, or wondering what your hotel actually made last week.
                     </p>
 
                     <div class="hero-stats">
@@ -805,6 +805,13 @@
                             <h3>0.75%</h3>
                             <p>Pro fee</p>
                         </div>
+                    </div>
+
+                    <div class="hero-buttons">
+                        <a href="{{ route('register') }}" class="btn-green">Register Your Hotel</a>
+                        <a href="{{ route('public.hotels.index') }}" class="btn-white">
+                            <i class="feather-search me-1"></i> Find a Hotel to Book
+                        </a>
                     </div>
                 </div>
             </div>
@@ -1189,6 +1196,7 @@
         <div class="row g-4 mb-5">
             <div class="col-md-3">
                 <h5>Product</h5>
+                <a href="{{ route('public.hotels.index') }}" class="nav-item">Find a Hotel</a>
                 <a href="#features">Features</a>
                 <a href="#pricing">Pricing</a>
                 <a href="#how">How It Works</a>

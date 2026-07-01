@@ -7,7 +7,7 @@
         <div class="auth-left-inner">
 
             <div class="auth-panel-logo">
-                <img src="{{ asset('dashboard/assets/images/favicon.png') }}"
+                <img src="{{ asset('ashboard/assets/images/favicon.png') }}"
                      style="height:32px;filter:brightness(0) invert(1);" alt="AfricStay">
                 <span>AfricStay <small style="opacity:.6;font-weight:500;">Platform</small></span>
             </div>
@@ -40,7 +40,7 @@
     <div class="auth-right-panel">
         <div class="auth-form-box">
 
-            <img src="{{ asset('dashboard/assets/images/favicon.png') }}"
+            <img src="{{ asset('ashboard/assets/images/favicon.png') }}"
                  class="auth-logo-img" alt="AfricStay">
 
             <h2>Platform Admin Sign In</h2>

@@ -160,11 +160,12 @@
                                 <th class="fs-11 text-uppercase text-muted fw-semibold">Amount</th>
                                 <th class="fs-11 text-uppercase text-muted fw-semibold">Status</th>
                                 <th class="fs-11 text-uppercase text-muted fw-semibold">Date</th>
+                                <th class="fs-11 text-uppercase text-muted fw-semibold text-end pe-3"></th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach($payments as $p)
-                            <tr>
+                            <tr class="payment-row" style="cursor:pointer;" data-bs-toggle="collapse" data-bs-target="#payment-details-{{ $p->id }}">
                                 <td><code class="fs-12">{{ $p->payment_reference }}</code></td>
                                 <td class="fw-bold">₦{{ number_format($p->amountNaira(), 2) }}</td>
                                 <td>
@@ -176,6 +177,72 @@
                                     } }}">{{ ucfirst($p->status) }}</span>
                                 </td>
                                 <td class="text-muted fs-12">{{ $p->created_at->format('d M Y') }}</td>
+                                <td class="text-end pe-3">
+                                    <i class="feather-chevron-down text-muted payment-row-chevron" style="transition: transform .2s;"></i>
+                                </td>
+                            </tr>
+                            <tr class="collapse" id="payment-details-{{ $p->id }}">
+                                <td colspan="5" class="bg-light p-0">
+                                    <div class="p-3">
+                                        <div class="row g-3">
+                                            <div class="col-md-4">
+                                                <small class="text-muted text-uppercase fw-semibold d-block mb-1" style="font-size:11px;">Booking</small>
+                                                @if($p->booking)
+                                                <a href="{{ route('platform.hotels.index') }}" class="fw-semibold text-primary">
+                                                    {{ $p->booking->booking_reference ?? $p->booking_id }}
+                                                </a>
+                                                @else
+                                                <span>—</span>
+                                                @endif
+                                            </div>
+                                            <div class="col-md-4">
+                                                <small class="text-muted text-uppercase fw-semibold d-block mb-1" style="font-size:11px;">Payment Method</small>
+                                                <span class="text-capitalize">{{ str_replace('_', ' ', $p->payment_method) }}</span>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <small class="text-muted text-uppercase fw-semibold d-block mb-1" style="font-size:11px;">Provider</small>
+                                                <span class="text-capitalize">{{ $p->provider }}</span>
+                                            </div>
+
+                                            <div class="col-md-4">
+                                                <small class="text-muted text-uppercase fw-semibold d-block mb-1" style="font-size:11px;">Provider Reference</small>
+                                                <span>{{ $p->provider_reference ?? '—' }}</span>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <small class="text-muted text-uppercase fw-semibold d-block mb-1" style="font-size:11px;">Paid At</small>
+                                                <span>{{ $p->paid_at?->format('d M Y H:i') ?? '—' }}</span>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <small class="text-muted text-uppercase fw-semibold d-block mb-1" style="font-size:11px;">Created At</small>
+                                                <span>{{ $p->created_at->format('d M Y H:i') }}</span>
+                                            </div>
+
+                                            @if($p->payment_method === 'virtual_account')
+                                            <div class="col-md-4">
+                                                <small class="text-muted text-uppercase fw-semibold d-block mb-1" style="font-size:11px;">Virtual Account No.</small>
+                                                <span>{{ $p->virtual_account_number ?? '—' }}</span>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <small class="text-muted text-uppercase fw-semibold d-block mb-1" style="font-size:11px;">Virtual Account Bank</small>
+                                                <span>{{ $p->virtual_account_bank ?? '—' }}</span>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <small class="text-muted text-uppercase fw-semibold d-block mb-1" style="font-size:11px;">Virtual Account Name</small>
+                                                <span>{{ $p->virtual_account_name ?? '—' }}</span>
+                                            </div>
+                                            @endif
+
+                                            <div class="col-md-4">
+                                                <small class="text-muted text-uppercase fw-semibold d-block mb-1" style="font-size:11px;">Amount (kobo)</small>
+                                                <span>{{ number_format($p->amount) }}</span>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <small class="text-muted text-uppercase fw-semibold d-block mb-1" style="font-size:11px;">Payment ID</small>
+                                                <code class="fs-12">{{ $p->id }}</code>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
                             </tr>
                             @endforeach
                         </tbody>
@@ -345,3 +412,18 @@
 </div>
 
 @endsection
+
+@push('scripts')
+<script>
+document.querySelectorAll('.payment-row').forEach(row => {
+    const target = document.querySelector(row.dataset.bsTarget);
+    if (!target) return;
+    target.addEventListener('show.bs.collapse', () => {
+        row.querySelector('.payment-row-chevron').style.transform = 'rotate(180deg)';
+    });
+    target.addEventListener('hide.bs.collapse', () => {
+        row.querySelector('.payment-row-chevron').style.transform = 'rotate(0deg)';
+    });
+});
+</script>
+@endpush

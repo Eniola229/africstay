@@ -290,4 +290,48 @@ public function callback(Request $request, string $slug)
             'booking_reference' => $booking->booking_reference,
         ]);
     }
+
+    /**
+     * Public hotel directory — /hotels — lets guests browse and search for
+     * hotels on AfricStay, then click through to a hotel's booking page.
+     */
+    public function directory(Request $request)
+    {
+        $query = Hotel::where('is_active', true)
+            ->where('online_booking_enabled', true);
+
+        if ($search = $request->input('q')) {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('city', 'like', "%{$search}%")
+                  ->orWhere('state', 'like', "%{$search}%");
+            });
+        }
+
+        if ($state = $request->input('state')) {
+            $query->where('state', $state);
+        }
+
+        $hotels = $query
+            ->withMin(['rooms as starting_price' => function ($q) {
+                $q->where('status', '!=', 'maintenance');
+            }], 'price_per_night')
+            ->orderBy('name')
+            ->paginate(12)
+            ->withQueryString();
+
+        $states = Hotel::where('is_active', true)
+            ->where('online_booking_enabled', true)
+            ->whereNotNull('state')
+            ->distinct()
+            ->orderBy('state')
+            ->pluck('state');
+
+        return view('public.hotels-directory', [
+            'hotels' => $hotels,
+            'states' => $states,
+            'search' => $search ?? null,
+            'selectedState' => $state ?? null,
+        ]);
+    }
 }

@@ -1,2 +1,26 @@
 User-agent: *
-Disallow:
+Allow: /
+Allow: /hotels
+Allow: /hotel/
+Allow: /login
+Allow: /register
+
+Disallow: /password/
+Disallow: /dashboard
+Disallow: /onboarding
+Disallow: /rooms
+Disallow: /bookings
+Disallow: /wallet
+Disallow: /settings
+Disallow: /housekeeping
+Disallow: /room-service
+Disallow: /locations
+Disallow: /reports
+Disallow: /subscription
+Disallow: /platform
+Disallow: /webhooks
+Disallow: /staff/invite
+Disallow: /*/booking/callback
+Disallow: /*/booking/*/check-status
+
+Sitemap: https://africstayhms.com/sitemap.xml

@@ -61,7 +61,7 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3 mb-2">
+<!--     <div class="col-md-3 mb-2">
         <div class="card h-100">
             <div class="card-body">
                 <div class="d-flex align-items-start justify-content-between">
@@ -84,7 +84,7 @@
                 </div>
             </div>
         </div>
-    </div>
+    </div> -->
     <div class="col-md-3 mb-2">
         <div class="card h-100" style="background:#D5F5E3;">
             <div class="card-body">

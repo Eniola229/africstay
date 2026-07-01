@@ -103,10 +103,10 @@
                     </div>
                     <div class="mb-4">
                         <label class="form-label fw-bold">Minimum deposit (%)</label>
-                        <input type="number" name="online_booking_deposit_percent" value="{{ $hotel->online_booking_deposit_percent }}"
-                               min="10" max="100" class="form-control @error('online_booking_deposit_percent') is-invalid @enderror" required>
+                        <input type="number" name="online_booking_deposit_percent" value="{{ $hotel->online_booking_deposit_percent }}" 
+                               min="10" max="100" class="form-control @error('online_booking_deposit_percent') is-invalid @enderror" readonly>
                         @error('online_booking_deposit_percent') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                        <small class="text-muted">Spec minimum is 50%, but you can set anything from 10–100%.</small>
+                        <small class="text-muted">Spec minimum is 100%, In our V2 you will be able to set min or mx for your online booking deposit.</small>
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold">SEO title <span class="text-muted">(optional)</span></label>
